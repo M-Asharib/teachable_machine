@@ -8,7 +8,7 @@ This file tracks the developmental milestones of the decoupled Teachable Machine
 ## Phase 0: UX Benchmark & Reference Study
 Before writing any code, experience the target UX to understand exactly what we are building toward.
 
-- [ ] **Task 0.1: Experience Google's Teachable Machine Firsthand**
+- [x] **Task 0.1: Experience Google's Teachable Machine Firsthand**
   * Open the official benchmark URL: `https://teachablemachine.withgoogle.com/train/image`
   * Perform a full end-to-end test:
     * Define at least 2 custom class names.
@@ -16,7 +16,7 @@ Before writing any code, experience the target UX to understand exactly what we 
     * Click "Train Model" and observe the instant training speed.
     * Switch to the preview panel and test accuracy with live camera input.
   * Observe and note down: the UI layout, the progress bar style, the performance meter behavior.
-- [ ] **Task 0.2: Define UI Parity Goals**
+- [x] **Task 0.2: Define UI Parity Goals**
   * Write down exactly which visual elements from the Google tool we must replicate:
     * Class naming cards.
     * Sample count display per class.
@@ -28,10 +28,14 @@ Before writing any code, experience the target UX to understand exactly what we 
 ## Phase 1: Environment & Directory Setup
 Set up the structural skeleton of the project and ensure all machine learning and web dependencies are configured correctly.
 
-- [ ] **Task 1.1: Create Project Structure**
+- [x] **Task 1.1: Create Project Structure & Core Files**
   * Create `backend/` and `frontend/` folders under the root workspace.
   * Create a placeholder `backend/dataset/` directory (required for the `os` module folder-scan logic later).
-- [ ] **Task 1.2: Define Requirements**
+  * Create empty source files so the structure is fully defined from day one:
+    * `backend/main.py` — FastAPI application entry point.
+    * `backend/ml_engine.py` — ML training and inference logic.
+    * `frontend/app.py` — Streamlit user interface.
+- [x] **Task 1.2: Define Requirements**
   * Create `requirements.txt` on the root of the project with all exact library names:
     * `fastapi`
     * `uvicorn[standard]`
@@ -43,7 +47,7 @@ Set up the structural skeleton of the project and ensure all machine learning an
     * `scikit-learn`
     * `numpy`
     * `pillow`
-- [ ] **Task 1.3: Verification of Python Environment**
+- [x] **Task 1.3: Verification of Python Environment**
   * Validate that Python 3.9+ is available via `python --version`.
   * Install dependencies using `pip install -r requirements.txt`.
   * Confirm PyTorch can be imported: run `python -c "import torch; print(torch.__version__)"`.
@@ -54,11 +58,11 @@ Set up the structural skeleton of the project and ensure all machine learning an
 ## Phase 2: FastAPI Backend Core & Image Ingestion
 Implement the core FastAPI infrastructure and write the endpoint to accept and store custom training samples.
 
-- [ ] **Task 2.1: Implement Server Base (`backend/main.py`)**
+- [x] **Task 2.1: Implement Server Base (`backend/main.py`)**
   * Initialize the FastAPI application instance.
   * Add standard `CORSMiddleware` to allow all origins (required for cross-domain Streamlit communication).
   * Add a basic health-check endpoint `GET /` returning `{"status": "Teachable Machine API is running"}`.
-- [ ] **Task 2.2: Implement Ingestion API (`POST /upload-sample`)** *(Explicit guide requirements applied)*
+- [x] **Task 2.2: Implement Ingestion API (`POST /upload-sample`)** *(Explicit guide requirements applied)*
   * Accept form parameters: `class_name` (string) and `files` (list of `UploadFile`).
   * Sanitize `class_name` to strip spaces and special characters (make safe for directory naming).
   * **Use Python's built-in `os` module** (as mandated by the project guide) to:
@@ -69,9 +73,11 @@ Implement the core FastAPI infrastructure and write the endpoint to accept and s
     * This prevents any file overwriting between uploads.
   * Write each uploaded file's raw bytes to disk inside the correct class folder.
   * Return a JSON response: `{"message": "Uploaded {n} images to class '{class_name}'"}`.
-- [ ] **Task 2.3: Verification of Ingestion**
+- [x] **Task 2.3: Verification of Ingestion via FastAPI Swagger UI**
   * Start the FastAPI server: `uvicorn backend.main:app --reload --port 8000`.
-  * Send a mock upload using `curl` or a Python test script.
+  * **Open FastAPI's built-in interactive docs** at `http://localhost:8000/docs` (Swagger UI).
+    * This is the mandatory verification step for bootcamp students before connecting Streamlit.
+    * Test `POST /upload-sample` directly from the browser docs interface.
   * Inspect the `backend/dataset/` directory and confirm:
     * A class subfolder was created with the correct name.
     * Each image file has a unique UUID-based filename.
@@ -81,12 +87,12 @@ Implement the core FastAPI infrastructure and write the endpoint to accept and s
 ## Phase 3: Transfer Learning Training Engine
 Implement the machine learning pipeline that extracts deep visual features and trains a custom classification head on the fly.
 
-- [ ] **Task 3.1: Initialize PyTorch MobileNetV3 Backbone (`backend/ml_engine.py`)**
+- [x] **Task 3.1: Initialize PyTorch MobileNetV3 Backbone (`backend/ml_engine.py`)**
   * Import and load `mobilenet_v3_small` from `torchvision.models` with pretrained `DEFAULT` weights.
   * Set the model to evaluation mode using `.eval()` — this disables Dropout and BatchNorm training behavior.
   * Freeze all parameter gradients using `param.requires_grad = False` (prevents any weights from updating).
   * Slice the model to remove its final classification head — keep only the feature extraction layers so the output is a raw 1D feature vector per image.
-- [ ] **Task 3.2: Create the Mandatory Preprocessing Pipeline**
+- [x] **Task 3.2: Create the Mandatory Preprocessing Pipeline**
   * Write a reusable `preprocess_image(image_bytes)` function using `torchvision.transforms`:
     * Convert raw bytes → PIL Image (RGB mode).
     * Resize to exactly **224 × 224 pixels** (as mandated by the project guide).
@@ -95,12 +101,12 @@ Implement the machine learning pipeline that extracts deep visual features and t
       * Means: `[0.485, 0.456, 0.406]`
       * Std Devs: `[0.229, 0.224, 0.225]`
   * ⚠️ **CRITICAL**: This exact same function must be used in both training AND inference — any difference will break prediction accuracy.
-- [ ] **Task 3.3: Load Dataset & Extract Feature Vectors**
+- [x] **Task 3.3: Load Dataset & Extract Feature Vectors**
   * Use `os.listdir()` to scan all subdirectories inside `backend/dataset/`.
   * For each class folder, load all image files, run `preprocess_image()`, and pass them through the MobileNetV3 backbone using `torch.no_grad()`.
   * Collect all feature vectors into a numpy array `X` and corresponding integer labels into array `y`.
   * Build and store a `label_map` dictionary: `{0: "class_a", 1: "class_b", ...}`.
-- [ ] **Task 3.4: Train and Save the Classifier**
+- [x] **Task 3.4: Train and Save the Classifier**
   * Train a `sklearn.linear_model.LogisticRegression` model on `X` and `y`.
   * Bundle the trained classifier and the `label_map` into a single Python dictionary:
     ```python
@@ -114,18 +120,18 @@ Implement the machine learning pipeline that extracts deep visual features and t
 ## Phase 4: Training & Validation Endpoint
 Expose the training logic as a secure POST endpoint and incorporate robust error handling.
 
-- [ ] **Task 4.1: Integrate `POST /train` Endpoint**
+- [x] **Task 4.1: Integrate `POST /train` Endpoint**
   * Add `/train` route inside `backend/main.py`.
   * Call the training function from `backend/ml_engine.py`.
   * Return a success JSON response with training summary on completion.
-- [ ] **Task 4.2: Add Strict Validation Checks (Graceful Error Control)** *(Mandated by project guide)*
+- [x] **Task 4.2: Add Strict Validation Checks (Graceful Error Control)** *(Mandated by project guide)*
   * Before training, count all class subfolders inside `backend/dataset/` that contain at least 1 image.
   * **Check 1**: If total distinct classes is **less than 2**, return `HTTP 400`:
     * Message: `"At least 2 distinct classes with images are required to train a model."`
   * **Check 2**: If `backend/dataset/` directory is empty or missing, return `HTTP 400`:
     * Message: `"No dataset found. Please upload images first."`
   * These errors must be readable and clean — never let the server crash or return a 500 error to the user.
-- [ ] **Task 4.3: Prevent Server Lockup During Training**
+- [x] **Task 4.3: Prevent Server Lockup During Training**
   * Training must not block the server's ability to handle other requests.
   * Consider running training in a background thread if processing large datasets.
 
@@ -134,7 +140,7 @@ Expose the training logic as a secure POST endpoint and incorporate robust error
 ## Phase 5: Inference & Prediction API
 Expose the trained model through a precise prediction endpoint that returns percentage probability scores.
 
-- [ ] **Task 5.1: Create Prediction Core in `backend/ml_engine.py`**
+- [x] **Task 5.1: Create Prediction Core in `backend/ml_engine.py`**
   * Load `backend/model.pkl` and extract the `classifier` and `label_map`.
   * Accept raw image bytes, apply the **exact same** `preprocess_image()` function used during training.
   * Extract features using MobileNetV3 backbone (inside `torch.no_grad()`).
@@ -143,10 +149,10 @@ Expose the trained model through a precise prediction endpoint that returns perc
     * `predicted_class`: the label with highest probability (string).
     * `probabilities`: a dictionary of `{class_name: percentage_score}` for every trained class.
     * Example: `{"predicted_class": "Cup", "probabilities": {"Cup": 87.3, "Hand": 12.7}}`
-- [ ] **Task 5.2: Integrate `POST /predict` Endpoint**
+- [x] **Task 5.2: Integrate `POST /predict` Endpoint**
   * Add `/predict` route in `backend/main.py` that accepts a single `UploadFile`.
   * Pass the image bytes to the prediction core and return the formatted result.
-- [ ] **Task 5.3: Error Handling for Missing Model** *(Mandated by project guide)*
+- [x] **Task 5.3: Error Handling for Missing Model** *(Mandated by project guide)*
   * If `model.pkl` is not found on disk, return `HTTP 400`:
     * Message: `"No trained model found. Please train the model first."`
   * Never let the server crash with a 500 error on this common case.
@@ -178,6 +184,7 @@ Wire up the exact Streamlit components named in the project guide and manage sta
 
 - [ ] **Task 7.1: Training Action Component**
   * Use **`st.button("Train Model")`** *(as explicitly named in the project guide)* to trigger the training flow.
+  * Use the **`requests` library** to call `POST http://localhost:8000/train` when the button is clicked.
   * Show `st.spinner("Training in progress...")` while the POST request to `/train` is running.
   * On success, display `st.success("Model trained successfully!")`.
   * On failure (e.g., less than 2 classes), display the backend error using `st.error(message)`.
@@ -188,7 +195,10 @@ Wire up the exact Streamlit components named in the project guide and manage sta
 - [ ] **Task 7.3: State-Gated Live Prediction Interface**
   * Only render this section when `st.session_state.is_trained == True`.
   * Provide two testing input options: webcam snapshot or file upload.
-  * On "Predict" action, POST the image to `http://localhost:8000/predict` using `requests`.
+  * **Implement a continuous/live prediction loop** *(mandated by the guide as a "live preview meter")*:
+    * When in Webcam mode, each new frame captured by `st.camera_input` should **automatically** trigger a prediction without requiring a separate button click.
+    * When in File mode, prediction triggers immediately after file upload.
+  * Use the **`requests` library** to POST each image to `http://localhost:8000/predict`.
   * Display results using **both** *(as named in guide)*:
     * `st.progress(value)` — a styled progress bar per class showing percentage confidence.
     * `st.bar_chart(data)` — a clean horizontal bar chart of all class probabilities.
