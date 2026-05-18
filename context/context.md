@@ -110,7 +110,7 @@ The UI should feel premium, professional, and visually mirror Google's Teachable
 
 ## 5. Graceful Error Checklist
 The application must handle the following issues without crashing or freezing:
-- [ ] Clicking "Train" when there are less than two classes populated.
-- [ ] Sending empty requests to `/predict`.
-- [ ] Attempting to predict before a model file (`model.pkl`) is successfully created.
-- [ ] Attempting to write files with corrupted/unsupported formats.
+- [x] Clicking "Train" when there are less than two classes populated.
+- [x] Sending empty requests to `/predict`.
+- [x] Attempting to predict before a model file (`model.pkl`) is successfully created.
+- [x] Attempting to write files with corrupted/unsupported formats.

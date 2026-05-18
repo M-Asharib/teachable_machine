@@ -68,11 +68,17 @@ def extract_features(image_tensor: torch.Tensor) -> np.ndarray:
         # Convert tensor to numpy and flatten it
         return embedding.squeeze().cpu().numpy()
 
+# In-memory model cache to avoid disk reads on every prediction call
+_MODEL_CACHE = None
+
 def train_model(dataset_dir: str, model_path: str) -> Dict:
     """
     Scans the dataset directory, extracts features for all samples,
     trains a Scikit-Learn LogisticRegression classifier, and saves weights.
     """
+    global _MODEL_CACHE
+    _MODEL_CACHE = None
+    
     # 1. Scan directory and map folders to classes
     classes = sorted([
         d for d in os.listdir(dataset_dir)
@@ -152,15 +158,17 @@ def predict_image(image_bytes: bytes, model_path: str) -> Dict:
     Loads saved model.pkl, preprocesses incoming testing image,
     runs inference, and returns predicted class and percentage probabilities.
     """
+    global _MODEL_CACHE
     if not os.path.exists(model_path):
         raise FileNotFoundError("No trained model found. Please train the model first.")
 
-    # 1. Load model bundle
-    with open(model_path, "rb") as f:
-        model_bundle = pickle.load(f)
+    # 1. Load model bundle from cache if available
+    if _MODEL_CACHE is None:
+        with open(model_path, "rb") as f:
+            _MODEL_CACHE = pickle.load(f)
         
-    classifier = model_bundle["classifier"]
-    label_map = model_bundle["label_map"]
+    classifier = _MODEL_CACHE["classifier"]
+    label_map = _MODEL_CACHE["label_map"]
 
     # 2. Preprocess identical to training
     tensor = preprocess_image(image_bytes)

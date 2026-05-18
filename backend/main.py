@@ -202,6 +202,7 @@ def reset_dataset():
     """
     global MODEL_CACHE
     MODEL_CACHE = None
+    ml_engine._MODEL_CACHE = None
     
     # Remove model weight file if it exists
     if os.path.exists(MODEL_PATH):

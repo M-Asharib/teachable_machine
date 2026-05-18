@@ -162,15 +162,15 @@ Expose the trained model through a precise prediction endpoint that returns perc
 ## Phase 6: Streamlit Frontend Base & Data Collection
 Build the user interface elements for naming custom classes, selecting image acquisition types, and sending samples to the backend.
 
-- [ ] **Task 6.1: Initialize Streamlit Layout (`frontend/app.py`)**
+- [x] **Task 6.1: Initialize Streamlit Layout (`frontend/app.py`)**
   * Configure page settings: `st.set_page_config(page_title="Teachable Machine", layout="wide")`.
   * Inject custom CSS for premium dark mode, rounded card containers, gradient buttons, and smooth hover animations.
   * Build a styled header section with the project title and subtitle.
-- [ ] **Task 6.2: Class & Dataset Management UI**
+- [x] **Task 6.2: Class & Dataset Management UI**
   * Add a text input for users to type custom class label names.
   * Add an "Add Class" button that appends the new label to the active class list stored in `st.session_state.classes`.
   * Display all active classes in a visual card grid showing the class name and the current image sample count.
-- [ ] **Task 6.3: Multi-Method Sample Gathering**
+- [x] **Task 6.3: Multi-Method Sample Gathering**
   * Add a selector to toggle between two input modes: **File Uploader** or **Webcam Capture**.
   * In File mode: use `st.file_uploader(accept_multiple_files=True)` to support bulk image drag-and-drop.
   * In Webcam mode: use `st.camera_input()` to capture a single live frame from the user's camera.
@@ -182,17 +182,17 @@ Build the user interface elements for naming custom classes, selecting image acq
 ## Phase 7: Frontend Training & Prediction Interface
 Wire up the exact Streamlit components named in the project guide and manage state correctly.
 
-- [ ] **Task 7.1: Training Action Component**
+- [x] **Task 7.1: Training Action Component**
   * Use **`st.button("Train Model")`** *(as explicitly named in the project guide)* to trigger the training flow.
   * Use the **`requests` library** to call `POST http://localhost:8000/train` when the button is clicked.
   * Show `st.spinner("Training in progress...")` while the POST request to `/train` is running.
   * On success, display `st.success("Model trained successfully!")`.
   * On failure (e.g., less than 2 classes), display the backend error using `st.error(message)`.
-- [ ] **Task 7.2: Session State Management** *(Mandated: "State Management Checkpoints")*
+- [x] **Task 7.2: Session State Management** *(Mandated: "State Management Checkpoints")*
   * Initialize `st.session_state.is_trained = False` on app start.
   * Set `st.session_state.is_trained = True` only after a successful `/train` API response.
   * **Do NOT render** any prediction or testing components until `is_trained` is `True` — this keeps the dashboard clean and professional.
-- [ ] **Task 7.3: State-Gated Live Prediction Interface**
+- [x] **Task 7.3: State-Gated Live Prediction Interface**
   * Only render this section when `st.session_state.is_trained == True`.
   * Provide two testing input options: webcam snapshot or file upload.
   * **Implement a continuous/live prediction loop** *(mandated by the guide as a "live preview meter")*:
@@ -209,24 +209,24 @@ Wire up the exact Streamlit components named in the project guide and manage sta
 ## Phase 8: Robustness Testing & Refinement
 Iron out any remaining system bugs, optimize performance, and write full documentation.
 
-- [ ] **Task 8.1: Conduct End-to-End Integration Tests**
+- [x] **Task 8.1: Conduct End-to-End Integration Tests**
   * Verify the complete user journey from start to finish:
     * Add 2+ class names → Upload 5+ samples per class → Train → Predict with new image.
   * Verify Streamlit UI stays interactive and never freezes during training.
   * Verify the "Add Sample" counter updates correctly after each webcam capture and file upload.
-- [ ] **Task 8.2: Test All Graceful Error Controls** *(Mandated by project guide)*
+- [x] **Task 8.2: Test All Graceful Error Controls** *(Mandated by project guide)*
   * Test: Click "Train Model" with zero classes — expect clean error banner, no crash.
   * Test: Click "Train Model" with only 1 class — expect readable 400 error message.
   * Test: Click "Predict" before a model is trained — confirm the test panel is hidden by `session_state`.
   * Test: Send a corrupt/unsupported image file to `/predict` — expect a clean error, not a 500 crash.
-- [ ] **Task 8.3: Backend Performance Optimization**
+- [x] **Task 8.3: Backend Performance Optimization**
   * Cache the loaded `model.pkl` in server memory (e.g., use a module-level variable) so it is not reloaded from disk on every single `/predict` call.
   * Cache the MobileNetV3 backbone model in memory at server startup, not per-request.
-- [ ] **Task 8.4: Add Reset Functionality**
+- [x] **Task 8.4: Add Reset Functionality**
   * Add a "Reset Everything" button in the Streamlit sidebar.
   * On click, call a new `DELETE /reset` endpoint that clears the `backend/dataset/` directory and deletes `backend/model.pkl`.
   * Reset `st.session_state.is_trained = False` and clear the class list.
-- [ ] **Task 8.5: Write README.md** *(Specific content required)*
+- [x] **Task 8.5: Write README.md** *(Specific content required)*
   * Section 1: Project overview and architecture diagram (two services).
   * Section 2: Prerequisites (Python 3.9+, pip, webcam for webcam mode).
   * Section 3: Installation — `pip install -r requirements.txt`.
@@ -239,24 +239,25 @@ Iron out any remaining system bugs, optimize performance, and write full documen
 ## Phase 9: Docker & Containerization
 *"Final Challenge Tip"* from the project guide: Pack both services into Dockerfiles and launch with a single `docker-compose.yml`.
 
-- [ ] **Task 9.1: Write Backend Dockerfile (`backend/Dockerfile`)**
+- [x] **Task 9.1: Write Backend Dockerfile (`backend/Dockerfile`)**
   * Use a Python 3.11 slim base image.
   * Copy `requirements.txt` and install dependencies.
   * Copy the `backend/` source code.
   * Expose port `8000`.
   * Set the startup command: `uvicorn main:app --host 0.0.0.0 --port 8000`.
-- [ ] **Task 9.2: Write Frontend Dockerfile (`frontend/Dockerfile`)**
+- [x] **Task 9.2: Write Frontend Dockerfile (`frontend/Dockerfile`)**
   * Use a Python 3.11 slim base image.
   * Install Streamlit and requests from `requirements.txt`.
   * Copy the `frontend/` source code.
   * Expose port `8501`.
   * Set the startup command: `streamlit run app.py --server.port 8501 --server.address 0.0.0.0`.
-- [ ] **Task 9.3: Write `docker-compose.yml` on Root**
+- [x] **Task 9.3: Write `docker-compose.yml` on Root**
   * Define two services: `backend` and `frontend`.
   * Mount `backend/dataset/` as a persistent Docker volume so uploaded images survive container restarts.
   * Set the frontend service to depend on (`depends_on`) the backend service.
   * Map ports: `8000:8000` for backend, `8501:8501` for frontend.
-- [ ] **Task 9.4: Verify Docker Build & Run**
+- [x] **Task 9.4: Verify Docker Build & Run**
   * Run `docker-compose up --build` and confirm both containers start without errors.
   * Open browser at `http://localhost:8501` and complete the full user journey inside Docker.
   * Confirm that uploaded dataset images are persisted via the volume between container restarts.
+
