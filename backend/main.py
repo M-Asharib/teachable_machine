@@ -116,10 +116,14 @@ async def upload_sample(
     }
 
 @app.post("/train")
-def train():
+def train(
+    backbone_name: str = Form("MobileNetV3", description="The visual backbone to use (MobileNetV3 or ResNet18)"),
+    c_value: float = Form(1.0, description="Inverse of regularization strength (positive float)"),
+    penalty: str = Form("l2", description="Regularization penalty (l1 or l2)")
+):
     """
     Triggers the transfer learning engine.
-    Scans dataset directories, extracts MobileNetV3 features, fits Scikit-Learn Logistic Regression, and writes model.pkl.
+    Scans dataset directories, extracts features using ResNet18/MobileNetV3, fits classifier, and calculates validation metrics.
     """
     global MODEL_CACHE
     
@@ -153,7 +157,12 @@ def train():
 
     # 2. Trigger the training pipeline
     try:
-        summary = ml_engine.train_model(DATASET_DIR, MODEL_PATH)
+        summary = ml_engine.train_model(
+            DATASET_DIR, MODEL_PATH,
+            backbone_name=backbone_name,
+            c_value=c_value,
+            penalty=penalty
+        )
         # Invalidate the cache to force reloading the newly trained model on the next prediction
         MODEL_CACHE = None
         return {
@@ -228,3 +237,14 @@ def reset_dataset():
         "message": "Dataset and trained model have been successfully reset.",
         "deleted_classes": deleted_folders
     }
+
+@app.get("/features-pca")
+def features_pca(backbone_name: str = "MobileNetV3"):
+    """
+    Exposes 2D PCA representation of training data features.
+    """
+    try:
+        results = ml_engine.get_dataset_pca(DATASET_DIR, backbone_name)
+        return results
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"PCA clustering calculation failed: {str(e)}")

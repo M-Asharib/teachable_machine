@@ -14,25 +14,32 @@ from sklearn.linear_model import LogisticRegression
 # Set device to CPU strictly for lightweight and portable execution
 device = torch.device("cpu")
 
-# Initialize and cache the pretrained MobileNetV3 Small model as a feature extractor
-def get_feature_extractor():
-    # Load MobileNetV3 Small with default pretrained weights
-    weights = models.MobileNet_V3_Small_Weights.DEFAULT
-    model = models.mobilenet_v3_small(weights=weights)
-    
-    # Freeze all parameters so they are not updated during training
-    for param in model.parameters():
-        param.requires_grad = False
-        
-    # Slicing the classifier: Replace the final classifier with Identity
-    # The forward pass will return the 576-dimensional pooled & flattened embedding
-    model.classifier = torch.nn.Identity()
-    model.to(device)
-    model.eval()
-    return model
+# Global singleton/cached instance of feature extractors to save memory and startup time
+_BACKBONES = {}
 
-# Global singleton/cached instance of the feature extractor to save memory and startup time
-FEATURE_EXTRACTOR = get_feature_extractor()
+def get_backbone(name: str):
+    global _BACKBONES
+    if name not in _BACKBONES:
+        if name == "ResNet18":
+            weights = models.ResNet18_Weights.DEFAULT
+            model = models.resnet18(weights=weights)
+            for param in model.parameters():
+                param.requires_grad = False
+            model.fc = torch.nn.Identity()
+        else:  # MobileNetV3
+            weights = models.MobileNet_V3_Small_Weights.DEFAULT
+            model = models.mobilenet_v3_small(weights=weights)
+            for param in model.parameters():
+                param.requires_grad = False
+            model.classifier = torch.nn.Identity()
+        
+        model.to(device)
+        model.eval()
+        _BACKBONES[name] = model
+    return _BACKBONES[name]
+
+# Default backbone for initial startup/backwards compatibility
+FEATURE_EXTRACTOR = get_backbone("MobileNetV3")
 
 # Mandatory preprocessing pipeline (Uniformity constraint)
 # Resizes to 224x224 and normalizes according to default ImageNet/channel parameters
@@ -60,23 +67,24 @@ def preprocess_image(image_bytes: bytes) -> torch.Tensor:
     except Exception as e:
         raise ValueError(f"Image preprocessing failed: {str(e)}")
 
-def extract_features(image_tensor: torch.Tensor) -> np.ndarray:
+def extract_features(image_tensor: torch.Tensor, backbone_name: str = "MobileNetV3") -> np.ndarray:
     """
-    Passes a preprocessed image tensor through the MobileNetV3 backbone
+    Passes a preprocessed image tensor through the specified backbone
     and returns a 1D numpy feature vector.
     """
+    backbone = get_backbone(backbone_name)
     with torch.no_grad():
-        embedding = FEATURE_EXTRACTOR(image_tensor)
-        # Convert tensor to numpy and flatten it
+        embedding = backbone(image_tensor)
         return embedding.squeeze().cpu().numpy()
 
 # In-memory model cache to avoid disk reads on every prediction call
 _MODEL_CACHE = None
 
-def train_model(dataset_dir: str, model_path: str) -> Dict:
+def train_model(dataset_dir: str, model_path: str, backbone_name: str = "MobileNetV3", c_value: float = 1.0, penalty: str = "l2") -> Dict:
     """
-    Scans the dataset directory, extracts features for all samples,
-    trains a Scikit-Learn LogisticRegression classifier, and saves weights.
+    Scans the dataset directory, extracts features for all samples using the chosen backbone,
+    splits data into train/val subsets, trains a Scikit-Learn LogisticRegression classifier
+    with the selected penalty and regularizer strength, computes evaluation metrics, and saves weights.
     """
     global _MODEL_CACHE
     _MODEL_CACHE = None
@@ -114,14 +122,13 @@ def train_model(dataset_dir: str, model_path: str) -> Dict:
                 with open(img_path, "rb") as f:
                     img_bytes = f.read()
                 
-                # Preprocess and extract 576-dim feature vector
+                # Preprocess and extract features
                 tensor = preprocess_image(img_bytes)
-                features = extract_features(tensor)
+                features = extract_features(tensor, backbone_name=backbone_name)
                 
                 X.append(features)
                 y.append(idx)
             except Exception as e:
-                # Log or handle corrupted images gracefully
                 print(f"Skipping corrupted image {img_file} in class {class_name}: {str(e)}")
                 continue
 
@@ -131,35 +138,76 @@ def train_model(dataset_dir: str, model_path: str) -> Dict:
     X = np.array(X)
     y = np.array(y)
 
-    # 2. Fit Scikit-Learn Logistic Regression Classifier
-    # Use L2 penalty, default C=1.0, and liblinear/lbfgs solver (fast for small datasets)
-    classifier = LogisticRegression(max_iter=1000, random_state=42)
-    classifier.fit(X, y)
+    # 2. Evaluate eligibility for train-validation split (need at least 2 samples per class and >= 6 total samples)
+    unique_classes, counts = np.unique(y, return_counts=True)
+    can_split = len(y) >= 6 and all(cnt >= 2 for cnt in counts)
+    
+    X_train, y_train = X, y
+    validation_metrics = None
+    
+    if can_split:
+        from sklearn.model_selection import train_test_split
+        from sklearn.metrics import precision_recall_fscore_support, confusion_matrix
+        
+        X_train, X_val, y_train, y_val = train_test_split(
+            X, y, test_size=0.20, stratify=y, random_state=42
+        )
+    
+    # 3. Fit Scikit-Learn Logistic Regression Classifier
+    solver = "liblinear" if penalty == "l1" else "lbfgs"
+    classifier = LogisticRegression(C=c_value, penalty=penalty, solver=solver, max_iter=1000, random_state=42)
+    classifier.fit(X_train, y_train)
 
-    # 3. Save serialized weights bundle
+    # Calculate validation metrics if validation set exists
+    if can_split:
+        y_pred = classifier.predict(X_val)
+        accuracy = float(round(np.mean(y_val == y_pred) * 100, 2))
+        precision, recall, f1, _ = precision_recall_fscore_support(y_val, y_pred, average="weighted", zero_division=0)
+        cm = confusion_matrix(y_val, y_pred)
+        
+        validation_metrics = {
+            "split_executed": True,
+            "accuracy": accuracy,
+            "precision": float(round(precision * 100, 2)),
+            "recall": float(round(recall * 100, 2)),
+            "f1_score": float(round(f1 * 100, 2)),
+            "confusion_matrix": {
+                "labels": classes,
+                "matrix": cm.tolist()
+            }
+        }
+    else:
+        validation_metrics = {
+            "split_executed": False,
+            "warning": "Low sample count: all images used for training (no validation split)."
+        }
+
+    # 4. Save serialized model bundle
     model_bundle = {
         "classifier": classifier,
         "label_map": label_map,
-        "features_dim": 576
+        "backbone_name": backbone_name,
+        "features_dim": 512 if backbone_name == "ResNet18" else 576
     }
     
     with open(model_path, "wb") as f:
         pickle.dump(model_bundle, f)
 
-    # Compile training details for summary response
     class_distribution = {label_map[i]: int(np.sum(y == i)) for i in range(len(classes))}
     
     return {
         "classes": classes,
-        "samples_trained": len(y),
-        "class_distribution": class_distribution
+        "samples_trained": len(y_train),
+        "samples_validated": len(y) - len(y_train) if can_split else 0,
+        "class_distribution": class_distribution,
+        "validation_metrics": validation_metrics
     }
 
 def predict_image(image_bytes: bytes, model_path: str) -> Dict:
     """
     Loads saved model.pkl, preprocesses incoming testing image,
-    runs inference, generates saliency visual attention maps and foreground
-    bounding box overlays using OpenCV-like contour boundaries, and returns them.
+    runs inference using the saved backbone model, generates saliency visual
+    attention maps and foreground bounding box overlays, and returns them.
     """
     global _MODEL_CACHE
     if not os.path.exists(model_path):
@@ -174,14 +222,18 @@ def predict_image(image_bytes: bytes, model_path: str) -> Dict:
         
     classifier = _MODEL_CACHE["classifier"]
     label_map = _MODEL_CACHE["label_map"]
+    backbone_name = _MODEL_CACHE.get("backbone_name", "MobileNetV3")
+
+    # Fetch corresponding backbone model
+    backbone_model = get_backbone(backbone_name)
 
     # 2. Preprocess image tensor (enable grad for saliency extraction)
     tensor = preprocess_image(image_bytes)
     tensor.requires_grad_()
 
-    # 3. Extract MobileNetV3 features and track gradient flow
-    FEATURE_EXTRACTOR.zero_grad()
-    features = FEATURE_EXTRACTOR(tensor)
+    # 3. Extract features and track gradient flow
+    backbone_model.zero_grad()
+    features = backbone_model(tensor)
     
     # Detach features for classifier prediction
     features_np = features.squeeze(0).detach().cpu().numpy().reshape(1, -1)
@@ -191,7 +243,6 @@ def predict_image(image_bytes: bytes, model_path: str) -> Dict:
     probabilities = classifier.predict_proba(features_np)[0]
 
     # 5. Compute Saliency Attention Map via backpropagation
-    # The gradient of the sum of the feature map activations relative to input pixels
     loss = features.sum()
     loss.backward()
     
@@ -224,7 +275,6 @@ def predict_image(image_bytes: bytes, model_path: str) -> Dict:
     saliency_blend = Image.blend(original_image, heatmap_img, alpha=0.55)
 
     # 7. Create Bounding Box surrounding highly active saliency clusters
-    # Define active threshold at 35% of max gradient density
     mask = s_np > 0.35
     y_indices, x_indices = np.where(mask)
     
@@ -235,7 +285,6 @@ def predict_image(image_bytes: bytes, model_path: str) -> Dict:
         x_min, x_max = int(x_indices.min()), int(x_indices.max())
         y_min, y_max = int(y_indices.min()), int(y_indices.max())
         
-        # Add dynamic padding around detected region
         pad = 12
         x_min = max(0, x_min - pad)
         x_max = min(original_image.width, x_max + pad)
@@ -283,5 +332,62 @@ def predict_image(image_bytes: bytes, model_path: str) -> Dict:
         "probabilities": probs_dict,
         "bounding_box_image": bbox_b64,
         "saliency_image": saliency_b64,
-        "inference_time_ms": inference_time_ms
+        "inference_time_ms": inference_time_ms,
+        "backbone_used": backbone_name
     }
+
+def get_dataset_pca(dataset_dir: str, backbone_name: str = "MobileNetV3") -> List[Dict]:
+    """
+    Extracts features for all images in dataset_dir using the specified backbone,
+    projects them to 2D using PCA, and returns a list of dictionaries with coordinates.
+    """
+    from sklearn.decomposition import PCA
+    
+    classes = sorted([
+        d for d in os.listdir(dataset_dir)
+        if os.path.isdir(os.path.join(dataset_dir, d)) and d != ".gitkeep"
+    ])
+    
+    X = []
+    metadata = []
+    
+    for class_name in classes:
+        class_folder = os.path.join(dataset_dir, class_name)
+        image_files = [
+            f for f in os.listdir(class_folder)
+            if os.path.splitext(f)[1].lower() in [".jpg", ".jpeg", ".png", ".webp", ".bmp"]
+        ]
+        
+        for img_name in image_files:
+            img_path = os.path.join(class_folder, img_name)
+            try:
+                with open(img_path, "rb") as f:
+                    img_bytes = f.read()
+                tensor = preprocess_image(img_bytes)
+                features = extract_features(tensor, backbone_name)
+                X.append(features)
+                metadata.append({
+                    "class": class_name,
+                    "filename": img_name
+                })
+            except Exception:
+                continue
+                
+    if len(X) < 3:
+        return []
+        
+    X_arr = np.array(X)
+    # Fit PCA with 2 components
+    pca = PCA(n_components=2)
+    coords_2d = pca.fit_transform(X_arr)
+    
+    results = []
+    for i, meta in enumerate(metadata):
+        results.append({
+            "class": meta["class"],
+            "filename": meta["filename"],
+            "x": float(coords_2d[i, 0]),
+            "y": float(coords_2d[i, 1])
+        })
+        
+    return results

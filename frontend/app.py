@@ -4,8 +4,10 @@ import os
 import time
 import base64
 import pandas as pd
+import re
 from io import BytesIO
 from PIL import Image
+import streamlit.components.v1 as components
 
 # --- Page Configuration ---
 st.set_page_config(
@@ -149,6 +151,10 @@ if "backend_active" not in st.session_state:
     st.session_state.backend_active = False
 if "last_prediction" not in st.session_state:
     st.session_state.last_prediction = None
+if "prediction_history" not in st.session_state:
+    st.session_state.prediction_history = []
+if "train_summary" not in st.session_state:
+    st.session_state.train_summary = None
 
 # --- Helper Functions ---
 def check_backend_connection():
@@ -288,312 +294,527 @@ if not st.session_state.backend_active:
     st.info("👋 **Welcome!** Please launch the FastAPI backend to start defining classes and uploading training images.")
     st.stop()
 
-# Layout split: Left side for data collection & training, Right side for live preview/inference
-left_col, right_col = st.columns([1.1, 0.9], gap="large")
+# Define main view tabs
+tab_workspace, tab_theory = st.tabs(["✨ Model Training Workspace", "📖 Theory & Simulators"])
 
-# ==========================================
-# LEFT COLUMN: DATASET DEFINITION & INGESTION
-# ==========================================
-with left_col:
-    st.markdown("### 📂 1. Define Categories")
-    
-    # Custom Class Addition
-    with st.form("add_class_form", clear_on_submit=True):
-        new_class_input = st.text_input("Enter category name:", placeholder="e.g. Mug, Hand, Book, Remote")
-        submit_class = st.form_submit_button("＋ Add Category", use_container_width=True)
+with tab_workspace:
+    # Layout split: Left side for data collection & training, Right side for live preview/inference
+    left_col, right_col = st.columns([1.1, 0.9], gap="large")
+
+    # ==========================================
+    # LEFT COLUMN: DATASET DEFINITION & INGESTION
+    # ==========================================
+    with left_col:
+        st.markdown("### 📂 1. Define Categories")
         
-        if submit_class and new_class_input:
-            clean_name = new_class_input.strip()
-            # Basic validation
-            if clean_name.lower() in [c.lower() for c in st.session_state.classes]:
-                st.error(f"Category '{clean_name}' already exists.")
-            elif len(clean_name) < 2:
-                st.error("Category name must be at least 2 characters.")
-            else:
-                # Add locally, directory created automatically on sample upload
-                st.session_state.classes.append(clean_name)
-                st.toast(f"Category '{clean_name}' added!", icon="✨")
-                st.rerun()
-
-    # Category Grid Cards Display
-    if st.session_state.classes:
-        st.markdown("<div style='margin-bottom: 10px; font-weight: 600; color: #94A3B8;'>Active Categories</div>", unsafe_allow_html=True)
-        cols = st.columns(min(len(st.session_state.classes), 3))
-        for idx, c in enumerate(st.session_state.classes):
-            col_target = cols[idx % 3]
-            count = class_counts.get(c, 0)
-            
-            with col_target:
-                st.markdown(f"""
-                    <div class='glass-card' style='padding: 16px; text-align: center; border-radius: 12px;'>
-                        <div class='card-title' style='justify-content: center; font-size: 1.1rem; margin-bottom: 10px;'>
-                            {c}
-                        </div>
-                        <span class='sample-badge'>{count} samples</span>
-                    </div>
-                """, unsafe_allow_html=True)
-    else:
-        st.info("No categories added yet. Add a category above to start collecting training samples!")
-        st.stop()
-
-    st.markdown("---")
-    st.markdown("### 📷 2. Ingest Training Samples")
-    
-    # Choose category to upload to
-    selected_class = st.selectbox(
-        "Select category to collect samples for:",
-        options=st.session_state.classes,
-        index=0
-    )
-
-    # Image collection method selection
-    input_method = st.radio(
-        "Select capture method:",
-        options=["📷 Live Webcam Capture", "📁 Bulk Upload Files"],
-        horizontal=True
-    )
-
-    # Ingestion Core
-    if input_method == "📁 Bulk Upload Files":
-        uploaded_files = st.file_uploader(
-            "Drag & drop custom images for this class:",
-            type=["jpg", "jpeg", "png", "webp", "bmp"],
-            accept_multiple_files=True,
-            key=f"uploader_{selected_class}"
-        )
-        
-        if uploaded_files:
-            if st.button(f"📤 Upload {len(uploaded_files)} image(s) to '{selected_class}'", use_container_width=True, type="primary"):
-                files_payload = []
-                for file in uploaded_files:
-                    files_payload.append(("files", (file.name, file.read(), file.type)))
-                
-                with st.spinner("Uploading samples..."):
-                    try:
-                        res = requests.post(
-                            f"{BACKEND_URL}/upload-sample",
-                            data={"class_name": selected_class},
-                            files=files_payload
-                        )
-                        if res.status_code == 200:
-                            st.success(f"Uploaded {len(uploaded_files)} samples successfully!")
-                            st.toast("Dataset updated!", icon="📥")
-                            time.sleep(1)
-                            st.rerun()
-                        else:
-                            st.error(f"Upload failed: {res.json().get('detail', 'Unknown error')}")
-                    except Exception as e:
-                        st.error(f"Error during upload: {str(e)}")
-                        
-    else: # Webcam Capture Mode
-        st.markdown("*Use your webcam to take custom snapshots. Images will be automatically named with secure UUIDs.*")
-        webcam_image = st.camera_input("Smile & click capture:")
-        
-        if webcam_image:
-            # Show active button to save the captured frame
-            if st.button(f"📥 Save Snapshot to '{selected_class}'", use_container_width=True, type="primary"):
-                file_bytes = webcam_image.read()
-                files_payload = [("files", ("webcam.jpg", file_bytes, "image/jpeg"))]
-                
-                with st.spinner("Saving snapshot..."):
-                    try:
-                        res = requests.post(
-                            f"{BACKEND_URL}/upload-sample",
-                            data={"class_name": selected_class},
-                            files=files_payload
-                        )
-                        if res.status_code == 200:
-                            st.success(f"Snapshot added to '{selected_class}' successfully!")
-                            st.toast("Snapshot saved!", icon="📷")
-                            time.sleep(1)
-                            st.rerun()
-                        else:
-                            st.error(f"Failed to save snapshot: {res.json().get('detail', 'Unknown error')}")
-                    except Exception as e:
-                        st.error(f"Error saving snapshot: {str(e)}")
-
-    st.markdown("---")
-    st.markdown("### 🚂 3. Transfer Learning Engine")
-    
-    # Show active checklist for training
-    ready_to_train = True
-    active_classes_count = 0
-    
-    st.markdown("#### Training Eligibility Checklist:")
-    
-    # Criterion 1: At least 2 classes
-    if len(st.session_state.classes) >= 2:
-        st.markdown("✅ Defined at least 2 categories.")
-    else:
-        st.markdown("❌ Defined at least 2 categories. *(Need more)*")
-        ready_to_train = False
-        
-    # Criterion 2: Each class must contain images
-    for c in st.session_state.classes:
-        count = class_counts.get(c, 0)
-        if count > 0:
-            st.markdown(f"✅ Category '{c}' has {count} sample(s).")
-            active_classes_count += 1
-        else:
-            st.markdown(f"❌ Category '{c}' has 0 samples. *(Upload data first)*")
-            ready_to_train = False
-
-    st.markdown("")
-    
-    # Train Button Trigger
-    if st.button("🚂 Train Custom Model", use_container_width=True, disabled=not ready_to_train, type="primary"):
-        with st.spinner("Extracting deep visual representations using MobileNetV3 and fitting classifier... Please wait."):
-            try:
-                res = requests.post(f"{BACKEND_URL}/train")
-                if res.status_code == 200:
-                    data = res.json()
-                    st.success("🎉 Custom classifier trained successfully!")
-                    st.session_state.is_trained = True
-                    st.session_state.prediction_history = []
-                    st.balloons()
-                    time.sleep(2)
+        # Custom Class Addition
+        new_class = st.text_input("Enter category name (e.g., 'Apple', 'Banana'):", placeholder="Class Name")
+        if st.button("➕ Add Category", use_container_width=True):
+            if new_class:
+                # Regex sanitize class name
+                safe_class_name = re.sub(r'[^a-zA-Z0-9_\-]', '', new_class.strip())
+                if safe_class_name and safe_class_name not in st.session_state.classes:
+                    st.session_state.classes.append(safe_class_name)
+                    st.toast(f"Category '{safe_class_name}' added!", icon="➕")
                     st.rerun()
+                elif safe_class_name in st.session_state.classes:
+                    st.warning("Category already exists.")
                 else:
-                    detail = res.json().get("detail", "Unknown server-side training error")
-                    st.error(f"Training Failed: {detail}")
-            except Exception as e:
-                st.error(f"Error triggering training: {str(e)}")
+                    st.error("Invalid category name.")
+            else:
+                st.error("Please enter a category name.")
 
-# ==========================================
-# RIGHT COLUMN: STATE-GATED PREVIEW & PREDICTION
-# ==========================================
-with right_col:
-    st.markdown("### 🔍 4. Live Model Testing")
-    
-    if not st.session_state.is_trained:
-        st.markdown("""
-            <div class='glass-card' style='text-align: center; border-color: rgba(255, 75, 75, 0.2); padding: 40px 20px;'>
-                <h3 style='margin: 0 0 10px 0; color: #FF4B4B;'>Testing Panel Locked</h3>
-                <p style='color: #94A3B8; font-size: 0.95rem; margin: 0;'>
-                    To prevent system errors, you cannot run visual predictions until a custom model has been successfully trained.
-                </p>
-                <p style='color: #64748B; font-size: 0.85rem; margin-top: 10px;'>
-                    Complete the 3 milestones on the left side to unlock.
-                </p>
-            </div>
-        """, unsafe_allow_html=True)
-    else:
-        st.markdown("""
-            <div style='background: rgba(0, 229, 255, 0.05); border: 1px solid rgba(0, 229, 255, 0.15); border-radius: 12px; padding: 12px; margin-bottom: 20px; font-size: 0.95rem; color: #E2E8F0;'>
-                🎉 <b>Classifier Unlocked!</b> Feed testing inputs to get real-time confidence scores and predictions.
-            </div>
-        """, unsafe_allow_html=True)
-
-        test_input_method = st.radio(
-            "Select testing input source:",
-            options=["📷 Live Webcam Test", "📁 Test Image File"],
-            horizontal=True
-        )
-
-        test_image_file = None
-        
-        if test_input_method == "📁 Test Image File":
-            test_image_file = st.file_uploader(
-                "Upload a test image:",
-                type=["jpg", "jpeg", "png", "webp", "bmp"],
-                key="test_uploader"
-            )
-        else:
-            test_image_file = st.camera_input("Capture live test snapshot:")
-
-        # Predict Trigger
-        if test_image_file:
-            img_bytes = test_image_file.read()
-            files_payload = {"file": ("test_frame.jpg", img_bytes, "image/jpeg")}
+        # Active Categories Grid Display
+        if st.session_state.classes:
+            st.markdown("<div style='margin-top: 20px; margin-bottom: 10px; font-weight: 600; color: #94A3B8;'>Active Categories</div>", unsafe_allow_html=True)
+            cols = st.columns(min(len(st.session_state.classes), 3))
+            for idx, c in enumerate(st.session_state.classes):
+                col_target = cols[idx % 3]
+                count = class_counts.get(c, 0)
+                
+                with col_target:
+                    st.markdown(f"""
+                        <div class='glass-card' style='padding: 16px; text-align: center; border-radius: 12px; margin-bottom: 10px;'>
+                            <div class='card-title' style='justify-content: center; font-size: 1.1rem; margin-bottom: 10px;'>
+                                {c}
+                            </div>
+                            <span class='sample-badge'>{count} samples</span>
+                        </div>
+                    """, unsafe_allow_html=True)
             
-            with st.spinner("Analyzing image..."):
+            # Draw PCA dataset separation chart if we have at least 3 total samples
+            total_samples = sum(class_counts.values())
+            if total_samples >= 3:
+                st.markdown("---")
+                st.markdown("#### 📊 Dataset Latent Space (PCA Projection)")
+                st.markdown("Projects high-dimensional CNN feature vectors to 2D to show dataset clustering quality.")
+                
                 try:
-                    res = requests.post(f"{BACKEND_URL}/predict", files=files_payload)
-                    if res.status_code == 200:
-                        st.session_state.last_prediction = res.json()
+                    sel_backbone = st.session_state.get("backbone_opt", "MobileNetV3")
+                    pca_res = requests.get(f"{BACKEND_URL}/features-pca", params={"backbone_name": sel_backbone})
+                    if pca_res.status_code == 200:
+                        pca_data = pca_res.json()
+                        if pca_data:
+                            pca_df = pd.DataFrame(pca_data)
+                            st.scatter_chart(
+                                pca_df,
+                                x="x",
+                                y="y",
+                                color="class",
+                                size=100,
+                                use_container_width=True
+                            )
+                        else:
+                            st.info("Insufficient samples processed to run PCA projection.")
                     else:
-                        st.error(f"Inference failed: {res.json().get('detail', 'Unknown error')}")
+                        st.error("Error retrieving PCA coordinates.")
                 except Exception as e:
-                    st.error(f"Inference endpoint error: {str(e)}")
+                    st.error(f"Error computing PCA plot: {str(e)}")
 
-        # Render Prediction Results beautifully using custom HTML progress bars
-        if st.session_state.last_prediction:
-            pred_data = st.session_state.last_prediction
-            winner = pred_data.get("predicted_class", "None")
-            probabilities = pred_data.get("probabilities", {})
-
-            # 1. Update rolling prediction history tracker
-            if "prediction_history" not in st.session_state:
-                st.session_state.prediction_history = []
+        st.markdown("---")
+        st.markdown("### 📷 2. Upload / Capture Training Samples")
+        
+        if not st.session_state.classes:
+            st.info("💡 Add at least one category above to start collecting training samples.")
+        else:
+            # Let user select which class they are uploading to
+            selected_class = st.selectbox(
+                "Select category to add samples to:",
+                options=st.session_state.classes
+            )
             
-            st.session_state.prediction_history.append(probabilities)
-            if len(st.session_state.prediction_history) > 15:
-                st.session_state.prediction_history.pop(0)
-
-            # Helper to load base64 images
-            def load_b64_image(b64_str):
-                return Image.open(BytesIO(base64.b64decode(b64_str)))
-
-            # 2. Render Live Visual Scanning Overlays Side-by-Side in Tabs
-            st.markdown("#### 📺 Live Visual Telemetry")
-            tab_bbox, tab_saliency = st.tabs(["🎯 Bounding Box (Square Overlay)", "🔥 Neural Attention Map"])
+            # Sub-tabs for input selection
+            upload_tab, camera_tab = st.tabs(["📁 Upload Images", "📷 Live Webcam Captures"])
             
-            with tab_bbox:
-                if "bounding_box_image" in pred_data:
-                    st.image(load_b64_image(pred_data["bounding_box_image"]), use_column_width=True, caption="Dynamic Foreground Bounding Box")
-                else:
-                    st.info("No bounding box metadata returned from model.")
+            with upload_tab:
+                uploaded_files = st.file_uploader(
+                    f"Choose images for '{selected_class}':",
+                    type=["jpg", "jpeg", "png", "webp", "bmp"],
+                    accept_multiple_files=True,
+                    key=f"upload_{selected_class}"
+                )
+                
+                if st.button(f"📥 Save Uploaded Images to '{selected_class}'", use_container_width=True, key=f"btn_upload_{selected_class}"):
+                    if uploaded_files:
+                        saved_count = 0
+                        with st.spinner(f"Uploading files to '{selected_class}'..."):
+                            for file in uploaded_files:
+                                try:
+                                    img_bytes = file.read()
+                                    files_payload = {"files": (file.name, img_bytes, file.type)}
+                                    data_payload = {"class_name": selected_class}
+                                    
+                                    res = requests.post(f"{BACKEND_URL}/upload-sample", files=files_payload, data=data_payload)
+                                    if res.status_code == 200:
+                                        saved_count += 1
+                                except Exception as e:
+                                    st.error(f"Failed to upload {file.name}: {str(e)}")
+                        
+                        if saved_count > 0:
+                            st.success(f"Successfully uploaded {saved_count} sample(s) to category '{selected_class}'!")
+                            time.sleep(1)
+                            st.rerun()
+                    else:
+                        st.error("Please choose files to upload first.")
             
-            with tab_saliency:
-                if "saliency_image" in pred_data:
-                    st.image(load_b64_image(pred_data["saliency_image"]), use_column_width=True, caption="Gradient-based MobileNetV3 Saliency Focus Map")
-                else:
-                    st.info("No saliency heatmap metadata returned from model.")
-
-            # 3. Render Latency & Hardware Telemetry Cards
-            col_lat, col_dev = st.columns(2)
-            with col_lat:
-                st.metric("Inference Latency", f"{pred_data.get('inference_time_ms', 0)} ms")
-            with col_dev:
-                st.metric("Computation Engine", "CPU (MobileNetV3)")
-
-            st.markdown(f"""
-                <div class='winner-banner' style='margin-top: 15px;'>
-                    ✨ Best Prediction: {winner}
-                </div>
-                <h4 style='margin-top: 20px; margin-bottom: 15px;'>Confidence Metrics</h4>
-            """, unsafe_allow_html=True)
-
-            # Sort probabilities by score descending
-            sorted_probs = sorted(probabilities.items(), key=lambda x: x[1], reverse=True)
-
-            for label, prob in sorted_probs:
-                # Set dynamic visual styling based on winner
-                is_winner = (label == winner)
-                bar_color = "linear-gradient(90deg, #00E5FF 0%, #0072FF 100%)" if is_winner else "linear-gradient(90deg, #64748B 0%, #475569 100%)"
-                val_color = "#00E5FF" if is_winner else "#94A3B8"
-                weight = "bold" if is_winner else "normal"
-
-                st.markdown(f"""
-                    <div class='meter-container'>
-                        <div class='meter-header'>
-                            <span class='meter-label' style='font-weight: {weight};'>{label}</span>
-                            <span class='meter-value' style='color: {val_color}; font-weight: bold;'>{prob}%</span>
-                        </div>
-                        <div class='meter-track'>
-                            <div class='meter-fill' style='width: {prob}%; background: {bar_color};'></div>
-                        </div>
+            with camera_tab:
+                st.markdown("#### 📸 Continuous Streaming & Burst Capture")
+                st.markdown("Use the premium high-speed capture engine below to record samples. Burst mode will take 10 consecutive frames at 500ms intervals.")
+                
+                # HTML5 camera burst script
+                camera_burst_html = f"""
+                <div style="background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.06); padding: 16px; border-radius: 12px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; color: white;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                        <span style="font-weight: 600; font-size: 1rem; color: #00E5FF;">📷 Continuous Webcam Stream</span>
+                        <span id="burst-status" style="font-size: 0.85rem; color: #94A3B8; font-weight: bold;">Ready</span>
                     </div>
-                """, unsafe_allow_html=True)
+                    
+                    <video id="webcam-feed" autoplay playsinline style="width: 100%; border-radius: 8px; border: 1px solid rgba(0, 229, 255, 0.2); background: #000; height: 200px; object-fit: cover; transform: scaleX(-1);"></video>
+                    <canvas id="capture-canvas" style="display: none;" width="640" height="480"></canvas>
+                    
+                    <div style="display: flex; gap: 8px; margin-top: 12px;">
+                        <button id="btn-snapshot" style="flex: 1; padding: 10px; background: linear-gradient(135deg, #00C6FF 0%, #0072FF 100%); border: none; border-radius: 8px; color: white; font-weight: bold; cursor: pointer; transition: opacity 0.2s;">📸 Single Shot</button>
+                        <button id="btn-burst" style="flex: 1; padding: 10px; background: linear-gradient(135deg, #7f00ff 0%, #e100ff 100%); border: none; border-radius: 8px; color: white; font-weight: bold; cursor: pointer; transition: opacity 0.2s;">🚀 Burst (10 Shots)</button>
+                    </div>
+                </div>
 
-            # 4. Display Rolling Timeline Graph
-            st.markdown("#### 📈 Probability History Timeline")
-            history_df = pd.DataFrame(st.session_state.prediction_history)
-            st.line_chart(history_df)
+                <script>
+                    const video = document.getElementById('webcam-feed');
+                    const canvas = document.getElementById('capture-canvas');
+                    const ctx = canvas.getContext('2d');
+                    const statusText = document.getElementById('burst-status');
+                    const btnSnapshot = document.getElementById('btn-snapshot');
+                    const btnBurst = document.getElementById('btn-burst');
+                    
+                    const backendUrl = "{BACKEND_URL}";
+                    const className = "{selected_class}";
+
+                    // Initialize webcam
+                    navigator.mediaDevices.getUserMedia({{ video: true }})
+                        .then(stream => {{
+                            video.srcObject = stream;
+                        }})
+                        .catch(err => {{
+                            console.error("Camera access failed: ", err);
+                            statusText.textContent = "Camera Blocked";
+                            statusText.style.color = "#FF4B4B";
+                        }});
+
+                    function uploadFrame(filename) {{
+                        ctx.save();
+                        ctx.translate(canvas.width, 0);
+                        ctx.scale(-1, 1);
+                        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                        ctx.restore();
+                        
+                        return new Promise((resolve, reject) => {{
+                            canvas.toBlob(blob => {{
+                                const formData = new FormData();
+                                formData.append('files', blob, filename);
+                                formData.append('class_name', className);
+                                
+                                fetch(backendUrl + '/upload-sample', {{
+                                    method: 'POST',
+                                    body: formData
+                                }})
+                                .then(res => res.json())
+                                .then(data => resolve(data))
+                                .catch(err => reject(err));
+                            }}, 'image/jpeg', 0.9);
+                        }});
+                    }}
+
+                    btnSnapshot.onclick = () => {{
+                        statusText.textContent = "Saving...";
+                        uploadFrame('snapshot_' + Date.now() + '.jpg')
+                            .then(data => {{
+                                statusText.textContent = "Saved!";
+                                setTimeout(() => {{
+                                    window.parent.location.reload();
+                                }}, 600);
+                            }})
+                            .catch(err => {{
+                                statusText.textContent = "Upload Failed";
+                                console.error(err);
+                            }});
+                    }};
+
+                    btnBurst.onclick = async () => {{
+                        btnSnapshot.disabled = true;
+                        btnBurst.disabled = true;
+                        btnBurst.style.opacity = '0.5';
+                        
+                        const totalShots = 10;
+                        for (let i = 0; i < totalShots; i++) {{
+                            statusText.textContent = `Capturing ${{i + 1}}/${{totalShots}}...`;
+                            try {{
+                                await uploadFrame(`burst_${{i + 1}}_${{Date.now()}}.jpg`);
+                            }} catch(err) {{
+                                console.error("Burst frame failed: ", err);
+                            }}
+                            await new Promise(r => setTimeout(r, 500));
+                        }}
+                        
+                        statusText.textContent = "Done! Reloading...";
+                        setTimeout(() => {{
+                            window.parent.location.reload();
+                        }}, 800);
+                    }};
+                </script>
+                """
+                components.html(camera_burst_html, height=330, scrolling=False)
+                
+                st.markdown("*(If the video stream is not loading due to browser sandboxing, use the manual backup capture console below)*")
+                camera_file = st.camera_input(f"Manual Backup Capture for '{selected_class}':", key=f"cam_{selected_class}")
+                if camera_file:
+                    img_bytes = camera_file.read()
+                    if st.button(f"📸 Save Manual Snapshot to '{selected_class}'", use_container_width=True):
+                        try:
+                            files_payload = {"files": ("webcam_capture.jpg", img_bytes, "image/jpeg")}
+                            data_payload = {"class_name": selected_class}
+                            res = requests.post(f"{BACKEND_URL}/upload-sample", files=files_payload, data=data_payload)
+                            if res.status_code == 200:
+                                st.success("Snapshot saved successfully!")
+                                time.sleep(1)
+                                st.rerun()
+                            else:
+                                st.error(f"Failed to save snapshot: {res.json().get('detail', 'Unknown error')}")
+                        except Exception as e:
+                            st.error(f"Error saving snapshot: {str(e)}")
+
+        st.markdown("---")
+        st.markdown("### 🚂 3. Transfer Learning Engine")
+        
+        # Show active checklist for training
+        ready_to_train = True
+        active_classes_count = 0
+        
+        st.markdown("#### Training Eligibility Checklist:")
+        
+        # Criterion 1: At least 2 classes
+        if len(st.session_state.classes) >= 2:
+            st.markdown("✅ Defined at least 2 categories.")
+        else:
+            st.markdown("❌ Defined at least 2 categories. *(Need more)*")
+            ready_to_train = False
             
+        # Criterion 2: Each class must contain images
+        for c in st.session_state.classes:
+            count = class_counts.get(c, 0)
+            if count > 0:
+                st.markdown(f"✅ Category '{c}' has {count} sample(s).")
+                active_classes_count += 1
+            else:
+                st.markdown(f"❌ Category '{c}' has 0 samples. *(Upload data first)*")
+                ready_to_train = False
+
+        st.markdown("")
+        
+        # Hyperparameter Selection controls
+        st.markdown("#### ⚙️ Hyperparameter Playground:")
+        backbone_opt = st.selectbox(
+            "Visual Feature Extractor (Backbone)",
+            options=["MobileNetV3", "ResNet18"],
+            index=0,
+            help="MobileNetV3 is highly optimized and fast. ResNet18 is deeper and provides larger embeddings."
+        )
+        col_c, col_pen = st.columns(2)
+        with col_c:
+            c_val = st.slider("Regularizer C", min_value=0.01, max_value=10.0, value=1.0, step=0.1, help="Inverse of regularization strength. Smaller values specify stronger regularization.")
+        with col_pen:
+            penalty_opt = st.radio("Penalty constraint", ["L2 (Ridge)", "L1 (Lasso)"], index=0, help="L2 penalty uses weight squaring. L1 penalty enforces sparsity.")
+            penalty_val = "l1" if "L1" in penalty_opt else "l2"
+
+        st.markdown("")
+        
+        # Train Button Trigger
+        if st.button("🚂 Train Custom Model", use_container_width=True, disabled=not ready_to_train, type="primary"):
+            with st.spinner(f"Extracting features using {backbone_opt} and training Logistic Regression..."):
+                try:
+                    payload = {
+                        "backbone_name": backbone_opt,
+                        "c_value": c_val,
+                        "penalty": penalty_val
+                    }
+                    res = requests.post(f"{BACKEND_URL}/train", data=payload)
+                    if res.status_code == 200:
+                        data = res.json()
+                        st.success("🎉 Custom classifier trained successfully!")
+                        st.session_state.is_trained = True
+                        st.session_state.prediction_history = []
+                        st.session_state.train_summary = data.get("details", {})
+                        st.balloons()
+                        time.sleep(2)
+                        st.rerun()
+                    else:
+                        detail = res.json().get("detail", "Unknown server-side training error")
+                        st.error(f"Training Failed: {detail}")
+                except Exception as e:
+                    st.error(f"Error triggering training: {str(e)}")
+
+        # Display Validation & Training Report
+        if "train_summary" in st.session_state and st.session_state.train_summary:
+            summary = st.session_state.train_summary
+            val_metrics = summary.get("validation_metrics", {})
+            
+            st.markdown("---")
+            st.markdown("### 📊 Model Performance Report")
+            
+            if val_metrics and val_metrics.get("split_executed"):
+                st.success("🤖 Stratified Validation Split Executed (80% Train, 20% Val)")
+                
+                # Metrics cards
+                col1, col2, col3, col4 = st.columns(4)
+                col1.metric("Val Accuracy", f"{val_metrics.get('accuracy')}%")
+                col2.metric("Precision", f"{val_metrics.get('precision')}%")
+                col3.metric("Recall", f"{val_metrics.get('recall')}%")
+                col4.metric("F1-Score", f"{val_metrics.get('f1_score')}%")
+                
+                # Confusion matrix display
+                st.markdown("#### 🎯 Validation Confusion Matrix")
+                cm_data = val_metrics.get("confusion_matrix", {})
+                labels = cm_data.get("labels", [])
+                matrix = cm_data.get("matrix", [])
+                
+                cm_df = pd.DataFrame(matrix, index=[f"Actual {l}" for l in labels], columns=[f"Predicted {l}" for l in labels])
+                st.dataframe(cm_df, use_container_width=True)
+            else:
+                warning_msg = val_metrics.get("warning", "No validation split executed.") if val_metrics else "Low sample count: all images used for training."
+                st.warning(f"⚠️ {warning_msg}")
+                st.info(f"Total samples trained: {summary.get('samples_trained', 0)}")
+
+    # ==========================================
+    # RIGHT COLUMN: STATE-GATED PREVIEW & PREDICTION
+    # ==========================================
+    with right_col:
+        st.markdown("### 🔍 4. Live Model Testing")
+        
+        if not st.session_state.is_trained:
+            st.markdown("""
+                <div class='glass-card' style='text-align: center; border-color: rgba(255, 75, 75, 0.2); padding: 40px 20px;'>
+                    <h3 style='margin: 0 0 10px 0; color: #FF4B4B;'>Testing Panel Locked</h3>
+                    <p style='color: #94A3B8; font-size: 0.95rem; margin: 0;'>
+                        To prevent system errors, you cannot run visual predictions until a custom model has been successfully trained.
+                    </p>
+                    <p style='color: #64748B; font-size: 0.85rem; margin-top: 10px;'>
+                        Complete the 3 milestones on the left side to unlock.
+                    </p>
+                </div>
+            """, unsafe_allow_html=True)
         else:
             st.markdown("""
-                <div class='glass-card' style='text-align: center; color: #64748B; padding: 40px 10px; font-size: 0.95rem;'>
-                    💡 Feed an image file or take a camera snapshot to display live prediction metrics.
+                <div style='background: rgba(0, 229, 255, 0.05); border: 1px solid rgba(0, 229, 255, 0.15); border-radius: 12px; padding: 12px; margin-bottom: 20px; font-size: 0.95rem; color: #E2E8F0;'>
+                    🎉 <b>Classifier Unlocked!</b> Feed testing inputs to get real-time confidence scores and predictions.
                 </div>
             """, unsafe_allow_html=True)
+
+            test_input_method = st.radio(
+                "Select testing input source:",
+                options=["📷 Live Webcam Test", "📁 Test Image File"],
+                horizontal=True
+            )
+
+            test_image_file = None
+            
+            if test_input_method == "📁 Test Image File":
+                test_image_file = st.file_uploader(
+                    "Upload a test image:",
+                    type=["jpg", "jpeg", "png", "webp", "bmp"],
+                    key="test_uploader"
+                )
+            else:
+                test_image_file = st.camera_input("Capture live test snapshot:")
+
+            # Predict Trigger
+            if test_image_file:
+                img_bytes = test_image_file.read()
+                files_payload = {"file": ("test_frame.jpg", img_bytes, "image/jpeg")}
+                
+                with st.spinner("Analyzing image..."):
+                    try:
+                        res = requests.post(f"{BACKEND_URL}/predict", files=files_payload)
+                        if res.status_code == 200:
+                            st.session_state.last_prediction = res.json()
+                        else:
+                            st.error(f"Inference failed: {res.json().get('detail', 'Unknown error')}")
+                    except Exception as e:
+                        st.error(f"Inference endpoint error: {str(e)}")
+
+            # Render Prediction Results beautifully using custom HTML progress bars
+            if st.session_state.last_prediction:
+                pred_data = st.session_state.last_prediction
+                winner = pred_data.get("predicted_class", "None")
+                probabilities = pred_data.get("probabilities", {})
+
+                # 1. Update rolling prediction history tracker
+                if "prediction_history" not in st.session_state:
+                    st.session_state.prediction_history = []
+                
+                st.session_state.prediction_history.append(probabilities)
+                if len(st.session_state.prediction_history) > 15:
+                    st.session_state.prediction_history.pop(0)
+
+                # Helper to load base64 images
+                def load_b64_image(b64_str):
+                    return Image.open(BytesIO(base64.b64decode(b64_str)))
+
+                # 2. Render Live Visual Scanning Overlays Side-by-Side in Tabs
+                st.markdown("#### 📺 Live Visual Telemetry")
+                tab_bbox, tab_saliency = st.tabs(["🎯 Bounding Box (Square Overlay)", "🔥 Neural Attention Map"])
+                
+                with tab_bbox:
+                    if "bounding_box_image" in pred_data:
+                        st.image(load_b64_image(pred_data["bounding_box_image"]), use_column_width=True, caption="Dynamic Foreground Bounding Box")
+                    else:
+                        st.info("No bounding box metadata returned from model.")
+                
+                with tab_saliency:
+                    if "saliency_image" in pred_data:
+                        st.image(load_b64_image(pred_data["saliency_image"]), use_column_width=True, caption="Gradient-based Saliency Attention Map")
+                    else:
+                        st.info("No saliency heatmap metadata returned from model.")
+
+                # 3. Render Latency & Hardware Telemetry Cards
+                col_lat, col_dev = st.columns(2)
+                with col_lat:
+                    st.metric("Inference Latency", f"{pred_data.get('inference_time_ms', 0)} ms")
+                with col_dev:
+                    st.metric("Computation Engine", f"CPU ({pred_data.get('backbone_used', 'MobileNetV3')})")
+
+                st.markdown(f"""
+                    <div class='winner-banner' style='margin-top: 15px;'>
+                        ✨ Best Prediction: {winner}
+                    </div>
+                    <h4 style='margin-top: 20px; margin-bottom: 15px;'>Confidence Metrics</h4>
+                """, unsafe_allow_html=True)
+
+                # Sort probabilities by score descending
+                sorted_probs = sorted(probabilities.items(), key=lambda x: x[1], reverse=True)
+
+                for label, prob in sorted_probs:
+                    # Set dynamic visual styling based on winner
+                    is_winner = (label == winner)
+                    bar_color = "linear-gradient(90deg, #00E5FF 0%, #0072FF 100%)" if is_winner else "linear-gradient(90deg, #64748B 0%, #475569 100%)"
+                    val_color = "#00E5FF" if is_winner else "#94A3B8"
+                    weight = "bold" if is_winner else "normal"
+
+                    st.markdown(f"""
+                        <div class='meter-container'>
+                            <div class='meter-header'>
+                                <span class='meter-label' style='font-weight: {weight};'>{label}</span>
+                                <span class='meter-value' style='color: {val_color}; font-weight: bold;'>{prob}%</span>
+                            </div>
+                            <div class='meter-track'>
+                                <div class='meter-fill' style='width: {prob}%; background: {bar_color};'></div>
+                            </div>
+                        </div>
+                    """, unsafe_allow_html=True)
+
+                # 4. Display Rolling Timeline Graph
+                st.markdown("#### 📈 Probability History Timeline")
+                history_df = pd.DataFrame(st.session_state.prediction_history)
+                st.line_chart(history_df)
+                
+            else:
+                st.markdown("""
+                    <div class='glass-card' style='text-align: center; color: #64748B; padding: 40px 10px; font-size: 0.95rem;'>
+                        💡 Feed an image file or take a camera snapshot to display live prediction metrics.
+                    </div>
+                """, unsafe_allow_html=True)
+
+with tab_theory:
+    st.markdown("### 📖 Artificial Intelligence & Machine Learning Theory Hub")
+    st.markdown("Explore core ML concepts, interact with simulators (Gradient Descent & Overfitting), and test your knowledge directly inside the dashboard.")
+    
+    # Inline and load index.html from learning_hub
+    try:
+        html_path = "learning_hub/index.html"
+        css_path = "learning_hub/styles.css"
+        js_path = "learning_hub/script.js"
+        
+        with open(html_path, "r", encoding="utf-8") as f:
+            html_content = f.read()
+        with open(css_path, "r", encoding="utf-8") as f:
+            css_content = f.read()
+        with open(js_path, "r", encoding="utf-8") as f:
+            js_content = f.read()
+            
+        # Programmatic inlining of CSS and JS
+        inlined_html = html_content.replace(
+            '<link rel="stylesheet" href="styles.css">',
+            f'<style>{css_content}</style>'
+        ).replace(
+            '<script src="script.js"></script>',
+            f'<script>{js_content}</script>'
+        )
+        
+        # Point relative image paths to local absolute path for iframe resolution
+        workspace_dir = os.path.abspath("learning_hub")
+        workspace_dir_url = workspace_dir.replace("\\", "/")
+        inlined_html = inlined_html.replace('src="assets/', f'src="file:///{workspace_dir_url}/assets/')
+        
+        # Render using Streamlit component
+        import streamlit.components.v1 as components
+        components.html(inlined_html, height=900, scrolling=True)
+    except Exception as e:
+        st.error(f"Failed to embed Learning Hub: {str(e)}")
