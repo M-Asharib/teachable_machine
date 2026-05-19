@@ -745,11 +745,18 @@ with tab_workspace:
                     <div class='winner-banner' style='margin-top: 15px;'>
                         ✨ Best Prediction: {winner}
                     </div>
-                    <h4 style='margin-top: 20px; margin-bottom: 15px;'>Confidence Metrics</h4>
                 """, unsafe_allow_html=True)
 
                 # Sort probabilities by score descending
                 sorted_probs = sorted(probabilities.items(), key=lambda x: x[1], reverse=True)
+
+                # Low-confidence warning for closed-set validation
+                if len(sorted_probs) >= 2:
+                    top_prob = sorted_probs[0][1]
+                    if top_prob < 65.0:
+                        st.warning("⚠️ **Low Confidence / Unknown Object:** The model is uncertain about this input. Because the model was only trained to distinguish between your active categories, any new object (like a human or blank wall) is forced into the closest match. To solve this, add a **'Background'** category containing random environment samples.")
+
+                st.markdown("<h4 style='margin-top: 20px; margin-bottom: 15px;'>Confidence Metrics</h4>", unsafe_allow_html=True)
 
                 for label, prob in sorted_probs:
                     # Set dynamic visual styling based on winner
