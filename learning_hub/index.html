@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI & ML Interactive Learning Hub</title>
+    <meta name="description" content="A premium, state-of-the-art interactive workspace for mastering Artificial Intelligence and Machine Learning. Tweak hyperparameters, explore roadmaps, and take quizzes.">
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- FontAwesome for Premium Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Vanilla Styles -->
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <!-- Floating Background Canvas for Particles -->
+    <canvas id="particleCanvas"></canvas>
+
+    <!-- Header & Navigation -->
+    <header class="main-header">
+        <div class="logo">
+            <span class="pulse-dot"></span>
+            <span class="gradient-text logo-title">AetherML</span>
+        </div>
+        <nav class="nav-links">
+            <a href="#hero" class="nav-item active"><i class="fa-solid fa-house"></i> Home</a>
+            <a href="#roadmap" class="nav-item"><i class="fa-solid fa-route"></i> Roadmap</a>
+            <a href="#playground" class="nav-item"><i class="fa-solid fa-gamepad"></i> Simulators</a>
+            <a href="#concepts" class="nav-item"><i class="fa-solid fa-brain"></i> Architectures</a>
+            <a href="#quiz" class="nav-item"><i class="fa-solid fa-graduation-cap"></i> Quiz Hub</a>
+        </nav>
+    </header>
+
+    <!-- Hero Section -->
+    <section id="hero" class="hero-section">
+        <div class="hero-content">
+            <div class="hero-tagline">
+                <i class="fa-solid fa-bolt"></i> The Ultimate AI/ML Interactive Academy
+            </div>
+            <h1 class="hero-title">
+                Demystifying <span class="gradient-text">Machine Learning</span> Through Direct Experimentation
+            </h1>
+            <p class="hero-desc">
+                Step inside a premium interactive canvas. Engage with live hyperparameter simulators, trace a comprehensive modern curriculum, analyze complex deep architectures, and test your knowledge.
+            </p>
+            <div class="hero-ctas">
+                <a href="#roadmap" class="btn btn-primary">Explore Curriculum</a>
+                <a href="#playground" class="btn btn-secondary">Open Simulators</a>
+            </div>
+        </div>
+    </section>
+
+    <!-- Interactive Roadmap Section -->
+    <section id="roadmap" class="section-container">
+        <div class="section-header">
+            <h2 class="section-title">Interactive <span class="gradient-text">Learning Pathway</span></h2>
+            <p class="section-subtitle">Click on the developmental milestones to explore the core syllabus topics, learning strategies, and recommended libraries.</p>
+        </div>
+
+        <div class="roadmap-container">
+            <!-- Roadmap SVG connector path (dynamic representation) -->
+            <div class="roadmap-timeline">
+                <!-- Node 1: Foundations -->
+                <div class="roadmap-node active" data-node="foundations">
+                    <div class="node-icon"><i class="fa-solid fa-calculator"></i></div>
+                    <h3 class="node-title">1. Foundations</h3>
+                    <p class="node-summary">Math & Python</p>
+                    <span class="node-status">Completed</span>
+                </div>
+                <!-- Node 2: Classical ML -->
+                <div class="roadmap-node" data-node="classical">
+                    <div class="node-icon"><i class="fa-solid fa-chart-line"></i></div>
+                    <h3 class="node-title">2. Classical ML</h3>
+                    <p class="node-summary">Supervised & Unsupervised</p>
+                    <span class="node-status">Active</span>
+                </div>
+                <!-- Node 3: Deep Learning -->
+                <div class="roadmap-node" data-node="deep">
+                    <div class="node-icon"><i class="fa-solid fa-network-wired"></i></div>
+                    <h3 class="node-title">3. Deep Learning</h3>
+                    <p class="node-summary">Neural Networks & CV</p>
+                    <span class="node-status">Upcoming</span>
+                </div>
+                <!-- Node 4: NLP & Generative AI -->
+                <div class="roadmap-node" data-node="generative">
+                    <div class="node-icon"><i class="fa-solid fa-wand-magic-sparkles"></i></div>
+                    <h3 class="node-title">4. Generative AI</h3>
+                    <p class="node-summary">Transformers & LLMs</p>
+                    <span class="node-status">Upcoming</span>
+                </div>
+            </div>
+
+            <!-- Detail Display Card -->
+            <div class="glass-card roadmap-details-card" id="roadmapDetails">
+                <div class="roadmap-details-header">
+                    <div class="details-icon-box" id="detailsIcon"><i class="fa-solid fa-calculator"></i></div>
+                    <div>
+                        <h3 id="detailsTitle" class="gradient-text">Foundations of ML</h3>
+                        <p id="detailsPhase" class="details-phase-label">Phase 1: Math & Python Basics</p>
+                    </div>
+                </div>
+                <hr class="divider">
+                <div class="roadmap-details-body">
+                    <div class="details-grid">
+                        <div>
+                            <h4><i class="fa-solid fa-book-open"></i> Core Subjects Covered</h4>
+                            <ul id="detailsSubjects" class="styled-list">
+                                <li>Linear Algebra (Matrices, Vectors, Eigenvalues)</li>
+                                <li>Multivariable Calculus (Gradients, Partial Derivatives)</li>
+                                <li>Probability & Statistics (Bayes' Theorem, Normal Distribution)</li>
+                                <li>Python Fundamentals (OOP, Iterators, NumPy, Pandas)</li>
+                            </ul>
+                        </div>
+                        <div>
+                            <h4><i class="fa-solid fa-toolbox"></i> Ecosystem Stack</h4>
+                            <div id="detailsStack" class="stack-tags">
+                                <span class="tag">NumPy</span>
+                                <span class="tag">Pandas</span>
+                                <span class="tag">Matplotlib</span>
+                                <span class="tag">Python</span>
+                            </div>
+                            <h4 style="margin-top: 20px;"><i class="fa-solid fa-star"></i> Milestone Objective</h4>
+                            <p id="detailsObjective">Understand optimization algorithms, read mathematical notation, and perform basic data engineering & exploratory data analysis.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Interactive Simulators Playground -->
+    <section id="playground" class="section-container">
+        <div class="section-header">
+            <h2 class="section-title">Concept <span class="gradient-text">Visual Simulators</span></h2>
+            <p class="section-subtitle">Experiment with core ML optimization and fitting properties. Tweak learning rates or complexity settings and observe the adjustments instantly.</p>
+        </div>
+
+        <div class="simulators-grid">
+            <!-- Simulator 1: Gradient Descent -->
+            <div class="glass-card simulator-card">
+                <div class="sim-header">
+                    <h3><i class="fa-solid fa-chart-line"></i> Gradient Descent Optimizer</h3>
+                    <span class="sim-badge cyan">Interactive</span>
+                </div>
+                <p class="sim-desc">Visualize how a model converges or diverges on a cost function curve $y = x^2$ based on the learning rate.</p>
+                
+                <div class="canvas-container">
+                    <canvas id="gdCanvas"></canvas>
+                </div>
+
+                <div class="control-panel">
+                    <div class="control-group">
+                        <label for="lrSlider">Learning Rate (&eta;): <span id="lrVal" class="val-display">0.1</span></label>
+                        <input type="range" id="lrSlider" min="0.01" max="1.1" step="0.01" value="0.1" class="custom-slider">
+                        <span class="slider-helper">High values cause oscillation or divergence. Low values converge slowly.</span>
+                    </div>
+                    <div class="control-group">
+                        <label for="stepsSlider">Optimization Steps: <span id="stepsVal" class="val-display">15</span></label>
+                        <input type="range" id="stepsSlider" min="5" max="50" step="1" value="15" class="custom-slider">
+                    </div>
+                    <div class="control-group">
+                        <label for="startXSlider">Starting Value (X₀): <span id="startXVal" class="val-display">-4</span></label>
+                        <input type="range" id="startXSlider" min="-5" max="5" step="0.2" value="-4" class="custom-slider">
+                    </div>
+                </div>
+
+                <div class="sim-feedback" id="gdFeedback">
+                    <span class="status-indicator success">🟢 Converged</span>
+                    <span class="feedback-text">Optimal parameters reached smoothly.</span>
+                </div>
+            </div>
+
+            <!-- Simulator 2: Overfitting & Polynomial Fitting -->
+            <div class="glass-card simulator-card">
+                <div class="sim-header">
+                    <h3><i class="fa-solid fa-wave-square"></i> Bias-Variance Tradeoff</h3>
+                    <span class="sim-badge purple">Interactive</span>
+                </div>
+                <p class="sim-desc">Fit a polynomial model to noisy data points. Watch how a high polynomial degree leads to extreme overfitting.</p>
+
+                <div class="canvas-container">
+                    <canvas id="overfittingCanvas"></canvas>
+                </div>
+
+                <div class="control-panel">
+                    <div class="control-group">
+                        <label for="degreeSlider">Polynomial Degree: <span id="degreeVal" class="val-display">2</span></label>
+                        <input type="range" id="degreeSlider" min="1" max="8" step="1" value="2" class="custom-slider">
+                        <span class="slider-helper">Degree 1 = Underfitting (High Bias). Degree 8 = Overfitting (High Variance).</span>
+                    </div>
+                    <div class="control-group">
+                        <label for="noiseSlider">Data Noise Level: <span id="noiseVal" class="val-display">15</span></label>
+                        <input type="range" id="noiseSlider" min="0" max="40" step="5" value="15" class="custom-slider">
+                    </div>
+                    <div class="control-group">
+                        <label for="pointsSlider">Number of Points: <span id="pointsVal" class="val-display">20</span></label>
+                        <input type="range" id="pointsSlider" min="10" max="40" step="2" value="20" class="custom-slider">
+                    </div>
+                </div>
+
+                <div class="sim-feedback" id="fittingFeedback">
+                    <span class="status-indicator warning">🟡 Balanced Fit</span>
+                    <span class="feedback-text">Captures the underlying trend of the data with minimal noise.</span>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Visual Architecture Section -->
+    <section id="concepts" class="section-container">
+        <div class="section-header">
+            <h2 class="section-title">Deep Learning <span class="gradient-text">Architectures</span></h2>
+            <p class="section-subtitle">Examine the foundational architectures of modern deep neural network frameworks.</p>
+        </div>
+
+        <div class="architecture-grid">
+            <!-- Card 1: Feedforward Neural Network -->
+            <div class="glass-card arch-card">
+                <div class="arch-img-wrapper">
+                    <img src="assets/neural_network_diagram.png" alt="Neural Network Layer Diagram" class="arch-img">
+                </div>
+                <div class="arch-body">
+                    <span class="category-pill cyan">Deep Learning</span>
+                    <h3>Multi-Layer Perceptron (MLP)</h3>
+                    <p class="arch-text">The bedrock of deep neural structures. Features input layers, hidden layers with non-linear activation functions (ReLU, Sigmoid), and an output layer. Inputs flow forward, and errors propagate backward via gradient descent.</p>
+                    <button class="btn btn-text-icon open-modal-btn" data-modal="mlp">Learn Deep Operations <i class="fa-solid fa-arrow-right"></i></button>
+                </div>
+            </div>
+
+            <!-- Card 2: CNN & Clustering -->
+            <div class="glass-card arch-card">
+                <div class="arch-img-wrapper">
+                    <img src="assets/data_clustering_diagram.png" alt="Data Clustering" class="arch-img">
+                </div>
+                <div class="arch-body">
+                    <span class="category-pill purple">Unsupervised ML</span>
+                    <h3>Clustering & Dimensionality Reduction</h3>
+                    <p class="arch-text">Algorithms like K-Means organize data points into localized clusters by computing distance vectors. Dimensionality reduction tools like PCA map complex datasets into lower dimensions while retaining maximum variance.</p>
+                    <button class="btn btn-text-icon open-modal-btn" data-modal="clustering">Learn Grouping Logic <i class="fa-solid fa-arrow-right"></i></button>
+                </div>
+            </div>
+
+            <!-- Card 3: Transformer Networks -->
+            <div class="glass-card arch-card">
+                <div class="arch-img-wrapper">
+                    <img src="assets/transformer_attention_diagram.png" alt="Self-Attention Transformer Head" class="arch-img">
+                </div>
+                <div class="arch-body">
+                    <span class="category-pill gold">Generative AI</span>
+                    <h3>Transformers & Self-Attention</h3>
+                    <p class="arch-text">The catalyst behind Large Language Models (LLMs). The self-attention mechanism enables nodes to process word tokens simultaneously and dynamically weight contextual relevance across distant sentence components.</p>
+                    <button class="btn btn-text-icon open-modal-btn" data-modal="transformer">Learn Attention Mechanics <i class="fa-solid fa-arrow-right"></i></button>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Modals for details (Integrated in SPA layout) -->
+    <div class="modal-backdrop" id="modalBackdrop">
+        <div class="glass-card modal-container">
+            <button class="close-modal-btn" id="closeModalBtn">&times;</button>
+            <div class="modal-content-area" id="modalContentArea">
+                <!-- Modal content dynamically loaded here -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Quiz Section -->
+    <section id="quiz" class="section-container quiz-section">
+        <div class="section-header">
+            <h2 class="section-title">Knowledge <span class="gradient-text">Assessment Quiz</span></h2>
+            <p class="section-subtitle">Challenge yourself on AI, Machine Learning, Deep Neural Networks, and NLP terms.</p>
+        </div>
+
+        <div class="quiz-outer-wrapper">
+            <div class="glass-card quiz-card">
+                <!-- Start View -->
+                <div id="quizStartView" class="quiz-view">
+                    <div class="quiz-intro-icon"><i class="fa-solid fa-brain"></i></div>
+                    <h3>Ready to evaluate your skills?</h3>
+                    <p>The quiz consists of 5 multiple-choice questions spanning regression, clustering, deep backpropagation, and Transformer layers.</p>
+                    <button class="btn btn-primary btn-large" id="startQuizBtn">Start Assessment</button>
+                </div>
+
+                <!-- Active Question View -->
+                <div id="quizQuestionView" class="quiz-view hidden">
+                    <div class="quiz-progress-bar">
+                        <div class="quiz-progress-fill" id="quizProgressFill" style="width: 0%;"></div>
+                    </div>
+                    <div class="quiz-meta">
+                        <span id="questionCounter">Question 1 of 5</span>
+                        <span class="quiz-score-badge"><i class="fa-solid fa-award"></i> Score: <span id="currentScoreVal">0</span></span>
+                    </div>
+                    <h3 id="questionText">Question goes here?</h3>
+                    
+                    <div class="options-container" id="optionsContainer">
+                        <!-- Options generated dynamically -->
+                    </div>
+
+                    <button class="btn btn-secondary hidden" id="nextQuestionBtn" style="margin-top: 20px; align-self: flex-end;">Next Question <i class="fa-solid fa-arrow-right"></i></button>
+                </div>
+
+                <!-- Results View -->
+                <div id="quizResultView" class="quiz-view hidden">
+                    <div class="quiz-result-icon" id="resultIcon"><i class="fa-solid fa-circle-check"></i></div>
+                    <h3 id="resultTitle">Assessment Completed!</h3>
+                    <p id="resultFeedbackText">You got 4 out of 5 questions correct.</p>
+                    <div class="final-score-container">
+                        <span class="score-display-number" id="finalScoreVal">80%</span>
+                    </div>
+                    <button class="btn btn-primary" id="restartQuizBtn">Retake Assessment</button>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="main-footer">
+        <p>&copy; 2026 AetherML Academy. Empowering next-generation AI and full-stack ML engineers.</p>
+        <div class="footer-socials">
+            <a href="#"><i class="fa-brands fa-github"></i></a>
+            <a href="#"><i class="fa-brands fa-linkedin"></i></a>
+            <a href="#"><i class="fa-brands fa-youtube"></i></a>
+        </div>
+    </footer>
+
+    <!-- Main Logic -->
+    <script src="script.js"></script>
+</body>
+</html>

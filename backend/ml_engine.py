@@ -1,8 +1,10 @@
 import os
 import io
+import time
+import base64
 import pickle
 from typing import Dict, Tuple, List
-from PIL import Image
+from PIL import Image, ImageDraw
 import numpy as np
 import torch
 import torchvision.transforms as transforms
@@ -156,11 +158,14 @@ def train_model(dataset_dir: str, model_path: str) -> Dict:
 def predict_image(image_bytes: bytes, model_path: str) -> Dict:
     """
     Loads saved model.pkl, preprocesses incoming testing image,
-    runs inference, and returns predicted class and percentage probabilities.
+    runs inference, generates saliency visual attention maps and foreground
+    bounding box overlays using OpenCV-like contour boundaries, and returns them.
     """
     global _MODEL_CACHE
     if not os.path.exists(model_path):
         raise FileNotFoundError("No trained model found. Please train the model first.")
+
+    start_time = time.time()
 
     # 1. Load model bundle from cache if available
     if _MODEL_CACHE is None:
@@ -170,24 +175,113 @@ def predict_image(image_bytes: bytes, model_path: str) -> Dict:
     classifier = _MODEL_CACHE["classifier"]
     label_map = _MODEL_CACHE["label_map"]
 
-    # 2. Preprocess identical to training
+    # 2. Preprocess image tensor (enable grad for saliency extraction)
     tensor = preprocess_image(image_bytes)
-    features = extract_features(tensor)
+    tensor.requires_grad_()
+
+    # 3. Extract MobileNetV3 features and track gradient flow
+    FEATURE_EXTRACTOR.zero_grad()
+    features = FEATURE_EXTRACTOR(tensor)
     
-    # Reshape for single sample prediction
-    features = features.reshape(1, -1)
+    # Detach features for classifier prediction
+    features_np = features.squeeze(0).detach().cpu().numpy().reshape(1, -1)
 
-    # 3. Predict class index and probabilities
-    pred_idx = int(classifier.predict(features)[0])
-    probabilities = classifier.predict_proba(features)[0]
+    # 4. Predict class index and probabilities
+    pred_idx = int(classifier.predict(features_np)[0])
+    probabilities = classifier.predict_proba(features_np)[0]
 
-    # 4. Format return values in percentage format
+    # 5. Compute Saliency Attention Map via backpropagation
+    # The gradient of the sum of the feature map activations relative to input pixels
+    loss = features.sum()
+    loss.backward()
+    
+    saliency, _ = torch.max(tensor.grad.data.abs(), dim=1)
+    saliency = saliency.squeeze(0).cpu().numpy()
+
+    # Normalization helper
+    s_min, s_max = saliency.min(), saliency.max()
+    if s_max - s_min > 1e-8:
+        saliency = (saliency - s_min) / (s_max - s_min)
+    else:
+        saliency = np.zeros_like(saliency)
+
+    # 6. Build the visual bounding box and attention maps using PIL and NumPy
+    original_image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
+    
+    # Resize saliency map back to match original image dimensions
+    saliency_img = Image.fromarray((saliency * 255).astype(np.uint8), mode='L')
+    saliency_img = saliency_img.resize(original_image.size, resample=Image.BICUBIC)
+    
+    # Map normalized grayscale values to custom jet colors (blue-cyan-green-yellow-red)
+    s_np = np.array(saliency_img) / 255.0
+    r = np.clip(1.5 - np.abs(4 * (s_np - 0.75)), 0, 1)
+    g = np.clip(1.5 - np.abs(4 * (s_np - 0.50)), 0, 1)
+    b = np.clip(1.5 - np.abs(4 * (s_np - 0.25)), 0, 1)
+    heatmap_np = np.stack([r, g, b], axis=-1)
+    heatmap_img = Image.fromarray((heatmap_np * 255).astype(np.uint8))
+    
+    # Overlay attention map transparently on top of original image
+    saliency_blend = Image.blend(original_image, heatmap_img, alpha=0.55)
+
+    # 7. Create Bounding Box surrounding highly active saliency clusters
+    # Define active threshold at 35% of max gradient density
+    mask = s_np > 0.35
+    y_indices, x_indices = np.where(mask)
+    
+    bbox_img = original_image.copy()
+    draw = ImageDraw.Draw(bbox_img)
+    
+    if len(x_indices) > 0 and len(y_indices) > 0:
+        x_min, x_max = int(x_indices.min()), int(x_indices.max())
+        y_min, y_max = int(y_indices.min()), int(y_indices.max())
+        
+        # Add dynamic padding around detected region
+        pad = 12
+        x_min = max(0, x_min - pad)
+        x_max = min(original_image.width, x_max + pad)
+        y_min = max(0, y_min - pad)
+        y_max = min(original_image.height, y_max + pad)
+        
+        # Draw high-contrast cyan scanning rectangle
+        draw.rectangle([x_min, y_min, x_max, y_max], outline="#00f2fe", width=3)
+        
+        # Overlay premium neon-purple bounding brackets on corners
+        corner_len = min(24, (x_max - x_min) // 4)
+        corner_color = "#7f00ff"
+        # Top-Left Bracket
+        draw.line([(x_min, y_min), (x_min + corner_len, y_min)], fill=corner_color, width=5)
+        draw.line([(x_min, y_min), (x_min, y_min + corner_len)], fill=corner_color, width=5)
+        # Top-Right Bracket
+        draw.line([(x_max, y_min), (x_max - corner_len, y_min)], fill=corner_color, width=5)
+        draw.line([(x_max, y_min), (x_max, y_min + corner_len)], fill=corner_color, width=5)
+        # Bottom-Left Bracket
+        draw.line([(x_min, y_max), (x_min + corner_len, y_max)], fill=corner_color, width=5)
+        draw.line([(x_min, y_max), (x_min, y_max - corner_len)], fill=corner_color, width=5)
+        # Bottom-Right Bracket
+        draw.line([(x_max, y_max), (x_max - corner_len, y_max)], fill=corner_color, width=5)
+        draw.line([(x_max, y_max), (x_max, y_max - corner_len)], fill=corner_color, width=5)
+
+    # 8. Encode final images as Base64 strings for REST API delivery
+    def convert_to_b64(img):
+        buf = io.BytesIO()
+        img.save(buf, format="JPEG")
+        return base64.b64encode(buf.getvalue()).decode("utf-8")
+
+    bbox_b64 = convert_to_b64(bbox_img)
+    saliency_b64 = convert_to_b64(saliency_blend)
+
+    # 9. Format response variables
     probs_dict = {
         label_map[idx]: float(round(prob * 100, 2))
         for idx, prob in enumerate(probabilities)
     }
 
+    inference_time_ms = float(round((time.time() - start_time) * 1000, 1))
+
     return {
         "predicted_class": label_map[pred_idx],
-        "probabilities": probs_dict
+        "probabilities": probs_dict,
+        "bounding_box_image": bbox_b64,
+        "saliency_image": saliency_b64,
+        "inference_time_ms": inference_time_ms
     }

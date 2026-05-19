@@ -2,6 +2,10 @@ import streamlit as st
 import requests
 import os
 import time
+import base64
+import pandas as pd
+from io import BytesIO
+from PIL import Image
 
 # --- Page Configuration ---
 st.set_page_config(
@@ -260,6 +264,7 @@ with st.sidebar:
                     st.session_state.classes = []
                     st.session_state.is_trained = False
                     st.session_state.last_prediction = None
+                    st.session_state.prediction_history = []
                     st.toast("Workspace reset successfully!", icon="🗑️")
                     time.sleep(1)
                     st.rerun()
@@ -444,6 +449,7 @@ with left_col:
                     data = res.json()
                     st.success("🎉 Custom classifier trained successfully!")
                     st.session_state.is_trained = True
+                    st.session_state.prediction_history = []
                     st.balloons()
                     time.sleep(2)
                     st.rerun()
@@ -516,11 +522,46 @@ with right_col:
             winner = pred_data.get("predicted_class", "None")
             probabilities = pred_data.get("probabilities", {})
 
+            # 1. Update rolling prediction history tracker
+            if "prediction_history" not in st.session_state:
+                st.session_state.prediction_history = []
+            
+            st.session_state.prediction_history.append(probabilities)
+            if len(st.session_state.prediction_history) > 15:
+                st.session_state.prediction_history.pop(0)
+
+            # Helper to load base64 images
+            def load_b64_image(b64_str):
+                return Image.open(BytesIO(base64.b64decode(b64_str)))
+
+            # 2. Render Live Visual Scanning Overlays Side-by-Side in Tabs
+            st.markdown("#### 📺 Live Visual Telemetry")
+            tab_bbox, tab_saliency = st.tabs(["🎯 Bounding Box (Square Overlay)", "🔥 Neural Attention Map"])
+            
+            with tab_bbox:
+                if "bounding_box_image" in pred_data:
+                    st.image(load_b64_image(pred_data["bounding_box_image"]), use_column_width=True, caption="Dynamic Foreground Bounding Box")
+                else:
+                    st.info("No bounding box metadata returned from model.")
+            
+            with tab_saliency:
+                if "saliency_image" in pred_data:
+                    st.image(load_b64_image(pred_data["saliency_image"]), use_column_width=True, caption="Gradient-based MobileNetV3 Saliency Focus Map")
+                else:
+                    st.info("No saliency heatmap metadata returned from model.")
+
+            # 3. Render Latency & Hardware Telemetry Cards
+            col_lat, col_dev = st.columns(2)
+            with col_lat:
+                st.metric("Inference Latency", f"{pred_data.get('inference_time_ms', 0)} ms")
+            with col_dev:
+                st.metric("Computation Engine", "CPU (MobileNetV3)")
+
             st.markdown(f"""
-                <div class='winner-banner'>
+                <div class='winner-banner' style='margin-top: 15px;'>
                     ✨ Best Prediction: {winner}
                 </div>
-                <h4 style='margin-bottom: 15px;'>Confidence Metrics</h4>
+                <h4 style='margin-top: 20px; margin-bottom: 15px;'>Confidence Metrics</h4>
             """, unsafe_allow_html=True)
 
             # Sort probabilities by score descending
@@ -544,6 +585,12 @@ with right_col:
                         </div>
                     </div>
                 """, unsafe_allow_html=True)
+
+            # 4. Display Rolling Timeline Graph
+            st.markdown("#### 📈 Probability History Timeline")
+            history_df = pd.DataFrame(st.session_state.prediction_history)
+            st.line_chart(history_df)
+            
         else:
             st.markdown("""
                 <div class='glass-card' style='text-align: center; color: #64748B; padding: 40px 10px; font-size: 0.95rem;'>
