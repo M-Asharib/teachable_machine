@@ -252,6 +252,26 @@ with st.sidebar:
         st.markdown(f"**Model Status:** {'✓ Trained & Ready' if st.session_state.is_trained else '⚡ Needs Training'}")
         if backend_info:
             st.markdown(f"**Classes in System:** `{len(backend_info.get('active_classes', []))}`")
+        
+        # Load and display model pickle metadata if trained
+        model_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "backend", "model.pkl")
+        if os.path.exists(model_path):
+            with st.expander("📦 Model File (.pkl) Inspector", expanded=False):
+                try:
+                    import pickle
+                    with open(model_path, "rb") as f:
+                        meta = pickle.load(f)
+                    st.write(f"**Backbone:** `{meta.get('backbone_name', 'MobileNetV3')}`")
+                    st.write(f"**Feature Dims:** `{meta.get('features_dim', 576)}`")
+                    st.write("**Classes Map:**")
+                    st.json(meta.get("label_map", {}))
+                    clf = meta.get("classifier")
+                    if clf:
+                        st.write(f"**Classifier:** `{type(clf).__name__}`")
+                        st.write(f"**Penalty:** `{getattr(clf, 'penalty', 'l2')}`")
+                        st.write(f"**Regularizer C:** `{getattr(clf, 'C', 1.0)}`")
+                except Exception as e:
+                    st.error(f"Error reading pickle: {e}")
     else:
         st.error("🔴 API Server: Disconnected")
         st.warning("Please ensure the FastAPI backend is running. Start it with:\n\n`uvicorn backend.main:app --reload --port 8000`")
