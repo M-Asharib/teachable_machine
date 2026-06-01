@@ -1,0 +1,3 @@
+{"timestamp": "2026-05-20T14:46:41.372051", "predicted_class": "asharib", "confidence": 75.42, "probabilities": {"asharib": 75.42, "glasses": 2.67, "sameel": 20.4, "watches": 1.51}, "backbone": "MobileNetV3"}
+{"timestamp": "2026-05-21T16:54:28.503689", "predicted_class": "asharib", "confidence": 91.27, "probabilities": {"asharib": 91.27, "glasses": 1.72, "sameel": 6.37, "watches": 0.64}, "backbone": "MobileNetV3"}
+{"timestamp": "2026-05-21T17:43:32.969037", "predicted_class": "asharib", "confidence": 84.04, "probabilities": {"asharib": 84.04, "glasses": 2.13, "sameel": 12.44, "watches": 1.39}, "backbone": "MobileNetV3"}

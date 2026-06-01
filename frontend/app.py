@@ -175,47 +175,25 @@ def check_backend_connection():
         st.session_state.backend_active = False
     return None
 
+@st.cache_data(ttl=3, show_spinner=False)
 def fetch_class_sample_counts():
-    """Queries backend folder list to count files in each class."""
+    """Queries backend /dataset-info endpoint to get class file counts."""
     counts = {}
-    backend_info = check_backend_connection()
-    if backend_info and st.session_state.backend_active:
-        # Check folders inside the dataset
+    for c in st.session_state.classes:
+        counts[c] = 0
+        
+    if st.session_state.backend_active:
         try:
-            # We can use backend info or fetch a list of classes
-            # Since main.py only returns active class names in GET /,
-            # We can run query or do individual scans.
-            # To avoid adding complex API, we do standard directory listing
-            # if we have backend access. Alternatively, we can let FastAPI expose sample counts.
-            # Let's see: FastAPI returns health details containing dataset_directory and active_classes.
-            # Wait, can we fetch the list of files from backend?
-            # To make it robust, let's keep track locally or get it from backend.
-            # Let's inspect e:\SMIT\teachable_machine\backend\main.py:
-            # It doesn't have an explicit /counts endpoint but / has 'active_classes'.
-            # Wait, we can fetch counts by checking the backend dataset folder if we are on the same machine!
-            # Since Streamlit and FastAPI run on the same filesystem in our local development workspace,
-            # we can read the directories directly! This is robust and fast.
-            backend_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "backend", "dataset")
-            if os.path.exists(backend_dir):
-                for c in st.session_state.classes:
-                    class_path = os.path.join(backend_dir, c)
-                    if os.path.exists(class_path):
-                        files = [
-                            f for f in os.listdir(class_path)
-                            if os.path.splitext(f)[1].lower() in [".jpg", ".jpeg", ".png", ".webp", ".bmp"]
-                        ]
-                        counts[c] = len(files)
-                    else:
-                        counts[c] = 0
-            else:
-                for c in st.session_state.classes:
-                    counts[c] = 0
+            response = requests.get(f"{BACKEND_URL}/dataset-info", timeout=2)
+            if response.status_code == 200:
+                data = response.json()
+                classes_data = data.get("classes", {})
+                for c, count in classes_data.items():
+                    counts[c] = count
+                    if c not in st.session_state.classes:
+                        st.session_state.classes.append(c)
         except Exception:
-            for c in st.session_state.classes:
-                counts[c] = 0
-    else:
-        for c in st.session_state.classes:
-            counts[c] = 0
+            pass
     return counts
 
 # --- Perform initial connection check ---
@@ -254,24 +232,26 @@ with st.sidebar:
             st.markdown(f"**Classes in System:** `{len(backend_info.get('active_classes', []))}`")
         
         # Load and display model pickle metadata if trained
-        model_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "backend", "model.pkl")
-        if os.path.exists(model_path):
+        if st.session_state.is_trained:
             with st.expander("📦 Model File (.pkl) Inspector", expanded=False):
                 try:
-                    import pickle
-                    with open(model_path, "rb") as f:
-                        meta = pickle.load(f)
-                    st.write(f"**Backbone:** `{meta.get('backbone_name', 'MobileNetV3')}`")
-                    st.write(f"**Feature Dims:** `{meta.get('features_dim', 576)}`")
-                    st.write("**Classes Map:**")
-                    st.json(meta.get("label_map", {}))
-                    clf = meta.get("classifier")
-                    if clf:
-                        st.write(f"**Classifier:** `{type(clf).__name__}`")
-                        st.write(f"**Penalty:** `{getattr(clf, 'penalty', 'l2')}`")
-                        st.write(f"**Regularizer C:** `{getattr(clf, 'C', 1.0)}`")
+                    res = requests.get(f"{BACKEND_URL}/model-info", timeout=2)
+                    if res.status_code == 200:
+                        meta = res.json()
+                        st.write(f"**Backbone:** `{meta.get('backbone_name', 'MobileNetV3')}`")
+                        st.write(f"**Feature Dims:** `{meta.get('features_dim', 576)}`")
+                        st.write("**Classes Map:**")
+                        st.json(meta.get("label_map", {}))
+                        
+                        clf_type = meta.get("classifier_type")
+                        if clf_type:
+                            st.write(f"**Classifier:** `{clf_type}`")
+                            st.write(f"**Penalty:** `{meta.get('penalty', 'l2')}`")
+                            st.write(f"**Regularizer C:** `{meta.get('c_value', 1.0)}`")
+                    else:
+                        st.info("No trained model details available.")
                 except Exception as e:
-                    st.error(f"Error reading pickle: {e}")
+                    st.error(f"Error reading model info: {e}")
     else:
         st.error("🔴 API Server: Disconnected")
         st.warning("Please ensure the FastAPI backend is running. Start it with:\n\n`uvicorn backend.main:app --reload --port 8000`")
@@ -301,6 +281,22 @@ with st.sidebar:
         else:
             st.error("Cannot reset: Backend is down.")
 
+    # ── Model Download Button ────────────────────────────────────────────────────
+    if st.session_state.get("is_trained", False):
+        try:
+            model_bytes = requests.get(f"{BACKEND_URL}/export-model", timeout=5)
+            if model_bytes.status_code == 200:
+                st.download_button(
+                    label="⬇️ Download Trained Model (.pkl)",
+                    data=model_bytes.content,
+                    file_name="teachable_machine_model.pkl",
+                    mime="application/octet-stream",
+                    use_container_width=True,
+                    help="Download your trained model to use it in other Python applications."
+                )
+        except Exception:
+            pass
+
     st.markdown("---")
     st.markdown("""
         <div style='font-size: 0.85rem; color: #64748B; text-align: center; margin-top: 50px;'>
@@ -315,7 +311,7 @@ if not st.session_state.backend_active:
     st.stop()
 
 # Define main view tabs
-tab_workspace, tab_theory = st.tabs(["✨ Model Training Workspace", "📖 Theory & Simulators"])
+tab_workspace, tab_theory, tab_analytics = st.tabs(["✨ Model Training Workspace", "📖 Theory & Simulators", "📊 Analytics Dashboard"])
 
 with tab_workspace:
     # Layout split: Left side for data collection & training, Right side for live preview/inference
@@ -439,6 +435,7 @@ with tab_workspace:
             
             with camera_tab:
                 st.markdown("#### 📸 Continuous Streaming & Burst Capture")
+                st.warning("⚠️ **Webcam Sandboxing Limit:** Due to modern browser security policies, custom HTML5 webcam components embedded in Streamlit iframes are often blocked from accessing the camera. If you see a 'Camera Blocked' error, please use the **Manual Backup Capture** below, which uses the native Streamlit camera input and works perfectly.")
                 st.markdown("Use the premium high-speed capture engine below to record samples. Burst mode will take 10 consecutive frames at 500ms intervals.")
                 
                 # HTML5 camera burst script
@@ -592,6 +589,12 @@ with tab_workspace:
         
         # Hyperparameter Selection controls
         st.markdown("#### ⚙️ Hyperparameter Playground:")
+        classifier_opt = st.selectbox(
+            "🤖 Classifier Algorithm",
+            options=["LogisticRegression", "SVM", "RandomForest", "KNN"],
+            index=0,
+            help="LogisticRegression is fast and interpretable. SVM handles non-linear boundaries. RandomForest is robust. KNN is simple and non-parametric."
+        )
         backbone_opt = st.selectbox(
             "Visual Feature Extractor (Backbone)",
             options=["MobileNetV3", "ResNet18"],
@@ -604,22 +607,27 @@ with tab_workspace:
         with col_pen:
             penalty_opt = st.radio("Penalty constraint", ["L2 (Ridge)", "L1 (Lasso)"], index=0, help="L2 penalty uses weight squaring. L1 penalty enforces sparsity.")
             penalty_val = "l1" if "L1" in penalty_opt else "l2"
+        
+        # SVM and tree classifiers ignore penalty — clarify to user
+        if classifier_opt in ["SVM", "RandomForest", "KNN"]:
+            st.info(f"ℹ️ `{classifier_opt}` ignores L1/L2 penalty. The C value and Backbone selection still apply.")
 
         st.markdown("")
         
         # Train Button Trigger
         if st.button("🚂 Train Custom Model", use_container_width=True, disabled=not ready_to_train, type="primary"):
-            with st.spinner(f"Extracting features using {backbone_opt} and training Logistic Regression..."):
+            with st.spinner(f"Extracting features using {backbone_opt} and training {classifier_opt}..."):
                 try:
                     payload = {
                         "backbone_name": backbone_opt,
+                        "classifier_type": classifier_opt,
                         "c_value": c_val,
                         "penalty": penalty_val
                     }
                     res = requests.post(f"{BACKEND_URL}/train", data=payload)
                     if res.status_code == 200:
                         data = res.json()
-                        st.success("🎉 Custom classifier trained successfully!")
+                        st.success(f"🎉 Custom classifier ({classifier_opt}) trained successfully!")
                         st.session_state.is_trained = True
                         st.session_state.prediction_history = []
                         st.session_state.train_summary = data.get("details", {})
@@ -714,7 +722,22 @@ with tab_workspace:
                     try:
                         res = requests.post(f"{BACKEND_URL}/predict", files=files_payload)
                         if res.status_code == 200:
-                            st.session_state.last_prediction = res.json()
+                            pred_json = res.json()
+                            st.session_state.last_prediction = pred_json
+                            
+                            # Log prediction details to backend analytics
+                            try:
+                                best_class = pred_json.get("predicted_class", "Unknown")
+                                confidence = pred_json.get("probabilities", {}).get(best_class, 0.0)
+                                log_payload = {
+                                    "predicted_class": best_class,
+                                    "confidence": confidence,
+                                    "probabilities": pred_json.get("probabilities", {}),
+                                    "backbone_used": pred_json.get("backbone_used")
+                                }
+                                requests.post(f"{BACKEND_URL}/log-prediction", json=log_payload, timeout=2)
+                            except Exception:
+                                pass
                         else:
                             st.error(f"Inference failed: {res.json().get('detail', 'Unknown error')}")
                     except Exception as e:
@@ -845,3 +868,62 @@ with tab_theory:
         components.html(inlined_html, height=900, scrolling=True)
     except Exception as e:
         st.error(f"Failed to embed Learning Hub: {str(e)}")
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# ANALYTICS TAB (appended after theory tab)
+# ─────────────────────────────────────────────────────────────────────────────
+try:
+    with tab_analytics:
+        st.markdown("### 📊 Prediction Analytics Dashboard")
+        st.markdown("Real-time summary of all inference sessions. Data is logged automatically after each prediction.")
+
+        if not st.session_state.get("backend_active", False):
+            st.warning("Backend must be connected to view analytics.")
+        else:
+            try:
+                res = requests.get(f"{BACKEND_URL}/analytics", timeout=3)
+                if res.status_code == 200:
+                    data = res.json()
+                    total = data.get("total_predictions", 0)
+                    dist = data.get("class_distribution", {})
+                    avg_conf = data.get("avg_confidence", {})
+                    recents = data.get("recent_predictions", [])
+
+                    if total == 0:
+                        st.info("No predictions logged yet. Run some inferences in the 🔮 Inference Engine tab first!")
+                    else:
+                        st.metric("Total Predictions Logged", total)
+                        st.markdown("---")
+
+                        col_a, col_b = st.columns(2)
+                        with col_a:
+                            st.markdown("#### 🗂️ Class Prediction Distribution")
+                            if dist:
+                                import pandas as pd
+                                dist_df = pd.DataFrame(list(dist.items()), columns=["Class", "Count"])
+                                st.bar_chart(dist_df.set_index("Class"))
+
+                        with col_b:
+                            st.markdown("#### 🎯 Average Confidence per Class")
+                            if avg_conf:
+                                conf_df = pd.DataFrame(list(avg_conf.items()), columns=["Class", "Avg Confidence (%)"])
+                                st.bar_chart(conf_df.set_index("Class"))
+
+                        st.markdown("---")
+                        st.markdown("#### 🕒 Last 10 Predictions")
+                        if recents:
+                            import pandas as pd
+                            log_df = pd.DataFrame([{
+                                "Time": e.get("timestamp", "")[:19].replace("T", " "),
+                                "Predicted": e.get("predicted_class", ""),
+                                "Confidence": f"{e.get('confidence', 0):.1f}%",
+                                "Backbone": e.get("backbone", "")
+                            } for e in reversed(recents)])
+                            st.dataframe(log_df, use_container_width=True, hide_index=True)
+                else:
+                    st.warning("Could not load analytics data from backend.")
+            except Exception as ex:
+                st.error(f"Analytics error: {ex}")
+except Exception:
+    pass  # tab_analytics may not be defined in older versions

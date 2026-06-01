@@ -1,0 +1,872 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Teachable Machine Pro - Capstone Slideshow</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Outfit:wght@400;600;700;800&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            --bg-dark: #070913;
+            --bg-card: rgba(17, 22, 43, 0.7);
+            --border-glass: rgba(255, 255, 255, 0.06);
+            --accent-cyan: #00f2fe;
+            --accent-violet: #a154f2;
+            --accent-gradient: linear-gradient(135deg, #00f2fe 0%, #a154f2 100%);
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --shadow-glow: 0 0 25px rgba(161, 84, 242, 0.2);
+            --transition-speed: 0.4s;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg-dark);
+            color: var(--text-main);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow-x: hidden;
+        }
+
+        /* Ambient background glow */
+        .ambient-glow {
+            position: absolute;
+            width: 600px;
+            height: 600px;
+            border-radius: 50%;
+            background: radial-gradient(circle, rgba(161, 84, 242, 0.12) 0%, rgba(7, 9, 19, 0) 70%);
+            top: -200px;
+            right: -200px;
+            z-index: 0;
+            pointer-events: none;
+        }
+
+        .ambient-glow-2 {
+            position: absolute;
+            width: 500px;
+            height: 500px;
+            border-radius: 50%;
+            background: radial-gradient(circle, rgba(0, 242, 254, 0.08) 0%, rgba(7, 9, 19, 0) 70%);
+            bottom: -200px;
+            left: -200px;
+            z-index: 0;
+            pointer-events: none;
+        }
+
+        /* Header */
+        header {
+            width: 100%;
+            padding: 1.5rem 3rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid var(--border-glass);
+            z-index: 10;
+            background: rgba(7, 9, 19, 0.8);
+            backdrop-filter: blur(10px);
+        }
+
+        .logo {
+            font-family: 'Outfit', sans-serif;
+            font-size: 1.5rem;
+            font-weight: 800;
+            background: var(--accent-gradient);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            letter-spacing: -0.5px;
+        }
+
+        .project-badge {
+            font-size: 0.85rem;
+            font-weight: 500;
+            padding: 0.4rem 1rem;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid var(--border-glass);
+            border-radius: 99px;
+            color: var(--accent-cyan);
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+        }
+
+        /* Main Layout */
+        main {
+            flex: 1;
+            display: grid;
+            grid-template-columns: 1.2fr 1fr;
+            gap: 2.5rem;
+            padding: 2.5rem 3rem;
+            z-index: 10;
+            max-width: 1800px;
+            margin: 0 auto;
+            width: 100%;
+            align-items: stretch;
+        }
+
+        @media (max-width: 1024px) {
+            main {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* Left Side: Visual Panel */
+        .visual-panel {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            background: var(--bg-card);
+            border: 1px solid var(--border-glass);
+            border-radius: 20px;
+            padding: 1.5rem;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+            backdrop-filter: blur(12px);
+            position: relative;
+            min-height: 450px;
+        }
+
+        .slide-image-container {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+            border-radius: 12px;
+            position: relative;
+            background: #02040a;
+        }
+
+        .slide-image {
+            max-width: 100%;
+            max-height: 520px;
+            object-fit: contain;
+            opacity: 0;
+            transform: scale(0.98);
+            transition: opacity var(--transition-speed) ease, transform var(--transition-speed) ease;
+        }
+
+        .slide-image.active {
+            opacity: 1;
+            transform: scale(1);
+        }
+
+        /* Right Side: Info Panel */
+        .info-panel {
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            gap: 1.5rem;
+        }
+
+        .slide-text-container {
+            background: var(--bg-card);
+            border: 1px solid var(--border-glass);
+            border-radius: 20px;
+            padding: 2rem;
+            flex: 1;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+            backdrop-filter: blur(12px);
+            opacity: 0;
+            transform: translateY(10px);
+            transition: opacity var(--transition-speed) ease, transform var(--transition-speed) ease;
+        }
+
+        .slide-text-container.active {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .slide-number {
+            font-family: 'Outfit', sans-serif;
+            font-size: 0.9rem;
+            color: var(--accent-cyan);
+            font-weight: 700;
+            text-transform: uppercase;
+            margin-bottom: 0.5rem;
+            letter-spacing: 1px;
+            display: inline-block;
+        }
+
+        .slide-title {
+            font-family: 'Outfit', sans-serif;
+            font-size: 2rem;
+            font-weight: 800;
+            line-height: 1.25;
+            margin-bottom: 0.5rem;
+            color: var(--text-main);
+        }
+
+        .slide-subtitle {
+            font-size: 1.1rem;
+            color: var(--accent-violet);
+            margin-bottom: 1.5rem;
+            font-weight: 500;
+        }
+
+        .slide-bullets {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+            list-style: none;
+        }
+
+        .slide-bullets li {
+            position: relative;
+            padding-left: 1.5rem;
+            line-height: 1.6;
+            color: #d1d5db;
+        }
+
+        .slide-bullets li::before {
+            content: "•";
+            color: var(--accent-cyan);
+            font-size: 1.5rem;
+            position: absolute;
+            left: 0;
+            top: -0.2rem;
+        }
+
+        /* Speaker Notes Panel */
+        .notes-panel {
+            background: rgba(30, 27, 75, 0.4);
+            border: 1px solid rgba(161, 84, 242, 0.25);
+            border-radius: 16px;
+            padding: 1.5rem;
+            position: relative;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+            transition: border var(--transition-speed) ease;
+        }
+
+        .notes-panel:hover {
+            border-color: rgba(161, 84, 242, 0.5);
+        }
+
+        .notes-header {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-family: 'Outfit', sans-serif;
+            font-size: 0.95rem;
+            font-weight: 700;
+            color: var(--accent-violet);
+            margin-bottom: 0.5rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .notes-header svg {
+            width: 18px;
+            height: 18px;
+            fill: var(--accent-violet);
+        }
+
+        .notes-content {
+            font-size: 0.95rem;
+            line-height: 1.6;
+            color: #e2e8f0;
+            font-style: italic;
+        }
+
+        /* Controls Block */
+        .controls-block {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1.5rem 3rem 2.5rem 3rem;
+            max-width: 1800px;
+            margin: 0 auto;
+            width: 100%;
+            z-index: 10;
+            gap: 1.5rem;
+        }
+
+        .navigation-btns {
+            display: flex;
+            gap: 1rem;
+        }
+
+        .btn {
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid var(--border-glass);
+            color: var(--text-main);
+            padding: 0.8rem 1.8rem;
+            border-radius: 12px;
+            cursor: pointer;
+            font-family: 'Outfit', sans-serif;
+            font-weight: 600;
+            font-size: 0.95rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            transition: all 0.3s ease;
+        }
+
+        .btn:hover {
+            background: var(--accent-gradient);
+            border-color: transparent;
+            box-shadow: var(--shadow-glow);
+            transform: translateY(-2px);
+        }
+
+        .btn:active {
+            transform: translateY(0);
+        }
+
+        .btn:disabled {
+            opacity: 0.3;
+            cursor: not-allowed;
+            transform: none;
+            background: rgba(255, 255, 255, 0.02);
+            box-shadow: none;
+        }
+
+        .play-indicator {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        /* Slider Thumbnails Strip */
+        .thumbnails-container {
+            width: 100%;
+            padding: 0.5rem 3rem 2rem 3rem;
+            max-width: 1800px;
+            margin: 0 auto;
+            z-index: 10;
+            overflow-x: auto;
+            white-space: nowrap;
+            scrollbar-width: thin;
+            scrollbar-color: rgba(255, 255, 255, 0.1) transparent;
+        }
+
+        .thumbnails-container::-webkit-scrollbar {
+            height: 6px;
+        }
+
+        .thumbnails-container::-webkit-scrollbar-thumb {
+            background-color: rgba(255, 255, 255, 0.1);
+            border-radius: 99px;
+        }
+
+        .thumbnail {
+            display: inline-block;
+            width: 80px;
+            height: 48px;
+            border-radius: 6px;
+            overflow: hidden;
+            margin-right: 0.75rem;
+            border: 2px solid transparent;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            background: #000;
+            opacity: 0.5;
+        }
+
+        .thumbnail:hover {
+            opacity: 0.85;
+            transform: translateY(-2px);
+        }
+
+        .thumbnail.active {
+            border-color: var(--accent-cyan);
+            box-shadow: 0 0 10px rgba(0, 242, 254, 0.4);
+            opacity: 1;
+            transform: translateY(-2px);
+        }
+
+        .thumbnail img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        /* Info Badge */
+        .info-tip {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            text-align: center;
+            padding-bottom: 1.5rem;
+            z-index: 10;
+        }
+
+        .info-tip code {
+            background: rgba(255, 255, 255, 0.06);
+            padding: 0.2rem 0.4rem;
+            border-radius: 4px;
+            color: var(--text-main);
+        }
+    </style>
+</head>
+<body>
+    <div class="ambient-glow"></div>
+    <div class="ambient-glow-2"></div>
+
+    <header>
+        <div class="logo">Teachable Machine Pro</div>
+        <div class="project-badge">Capstone Presentation</div>
+    </header>
+
+    <main>
+        <!-- Visual Panel -->
+        <div class="visual-panel">
+            <div class="slide-image-container">
+                <img src="slide_01_title.png" alt="Slide Graphic" id="slideImg" class="slide-image active">
+            </div>
+        </div>
+
+        <!-- Info Panel -->
+        <div class="info-panel">
+            <!-- Text Content -->
+            <div class="slide-text-container active" id="textContainer">
+                <span class="slide-number" id="slideNumLabel">Slide 01 of 18</span>
+                <h1 class="slide-title" id="slideTitle">Building a Decoupled, Custom Image Classifier</h1>
+                <h2 class="slide-subtitle" id="slideSubtitle">A Production-Grade Reinterpretation of Google's Teachable Machine</h2>
+                <ul class="slide-bullets" id="slideBullets">
+                    <li>Platform: Streamlit (Frontend Dashboard) + FastAPI (Backend ML Server)</li>
+                    <li>ML Pipeline: PyTorch MobileNetV3 Feature Extractor + Scikit-Learn Logistic Regression Classifier</li>
+                    <li>Deployment: Multi-container Docker & Docker Compose setup with persistent volumes</li>
+                </ul>
+            </div>
+
+            <!-- Speaker Notes -->
+            <div class="notes-panel">
+                <div class="notes-header">
+                    <svg viewBox="0 0 24 24">
+                        <path d="M20 2H4c-1.1 0-1.99.9-1.99 2L2 22l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zM6 9h12v2H6V9zm8 5H6v-2h8v2zm4-6H6V6h12v2z"/>
+                    </svg>
+                    Speaker Notes
+                </div>
+                <div class="notes-content" id="slideNotes">
+                    "Welcome, everyone. Today, I am excited to present the Teachable Machine Pro project. In this presentation, we will walk through how we transformed a prototype image classification workflow into a decoupled, production-grade client-server application. We will look at our technical architecture, our machine learning pipeline, our APIs, the frontend design system, error handling strategies, and how we packaged everything into Docker containers for seamless deployment."
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Controls -->
+    <div class="controls-block">
+        <div class="navigation-btns">
+            <button class="btn" id="prevBtn" disabled>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="19" y1="12" x2="5" y2="12"></line>
+                    <polyline points="12 19 5 12 12 5"></polyline>
+                </svg>
+                Previous
+            </button>
+            <button class="btn" id="nextBtn">
+                Next
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="5" y1="12" x2="19" y2="12"></line>
+                    <polyline points="12 5 19 12 12 19"></polyline>
+                </svg>
+            </button>
+        </div>
+        <div class="play-indicator">
+            <button class="btn" id="autoplayBtn">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" id="playIcon">
+                    <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                </svg>
+                <span id="playLabel">Autoplay</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- Thumbnail Bar -->
+    <div class="thumbnails-container" id="thumbContainer"></div>
+
+    <div class="info-tip">
+        Tip: You can use your keyboard <code>Left Arrow</code> and <code>Right Arrow</code> keys to navigate the slides.
+    </div>
+
+    <script>
+        // Slide dataset
+        const slides = [
+            {
+                num: 1,
+                title: "Building a Decoupled, Custom Image Classifier",
+                subtitle: "A Production-Grade Reinterpretation of Google's Teachable Machine",
+                image: "slide_01_title.png",
+                content: [
+                    "Platform: Streamlit (Frontend Dashboard) + FastAPI (Backend ML Server)",
+                    "ML Pipeline: PyTorch MobileNetV3 Feature Extractor + Scikit-Learn Logistic Regression Classifier",
+                    "Deployment: Multi-container Docker & Docker Compose setup with persistent volumes"
+                ],
+                notes: "Welcome, everyone. Today, I am excited to present the Teachable Machine Pro project. In this presentation, we will walk through how we transformed a prototype image classification workflow into a decoupled, production-grade client-server application. We will look at our technical architecture, our machine learning pipeline, our APIs, the frontend design system, error handling strategies, and how we packaged everything into Docker containers for seamless deployment."
+            },
+            {
+                num: 2,
+                title: "Project Motivation & Vision",
+                subtitle: "Replicating a World-Class UX with Enterprise Architecture",
+                image: "slide_02_motivation.png",
+                content: [
+                    "UX Benchmark: Replicate Google's Teachable Machine workflow—rapid training, instant local data gathering, and live performance meters.",
+                    "Architectural Upgrade: Shift away from monolithic notebooks where the interface and calculations share the same compute thread.",
+                    "Key Goals: Low-latency predictions, immediate dataset ingestion, and a system capable of running backend code on high-performance cloud GPUs."
+                ],
+                notes: "Google's Teachable Machine is famous for its simple, frictionless user interface. However, running ML tasks directly in the frontend can lead to performance bottlenecks and browser crashes. Our goal was to replicate this amazing, interactive workflow but with a major professional upgrade: separating the heavy computer vision calculations from the user interface using a modern API-driven client-server model."
+            },
+            {
+                num: 3,
+                title: "System Architecture Overview",
+                subtitle: "How the Frontend and Backend Services Communicate",
+                image: "slide_03_architecture.png",
+                content: [
+                    "Client-Side UI (Streamlit): Serves the visual dashboard, collects camera frames/webcam snaps, and renders real-time prediction confidence meters.",
+                    "Server-Side ML Engine (FastAPI): Computer vision backend. Accepts raw samples, computes feature representations, fits classifier head, and serves fast predictions.",
+                    "Network Protocols: Communication occurs over asynchronous HTTP requests (POST /upload-sample, /train, /predict)."
+                ],
+                notes: "Let's examine the system architecture. Our application is built as two completely separate services. The frontend is built on Streamlit and runs on Port 8501, handling only interface rendering and data collection. The backend is powered by FastAPI on Port 8000, functioning as the ML compute node. They communicate exclusively over asynchronous HTTP requests, mirroring real-world, cloud-ready software design."
+            },
+            {
+                num: 4,
+                title: "The Engineering Rationale for Decoupling",
+                subtitle: "Why Decoupled Designs Dominate Modern AI Applications",
+                image: "slide_04_decoupling.png",
+                content: [
+                    "UI Fluidity: Prevents interface freeze-ups or page crashes when running heavy PyTorch tensor math.",
+                    "Hardware Efficiency: Keeps the UI on low-cost static hosts, while routing backend compute requests to expensive GPU instances only when needed.",
+                    "Independent Scaling: The backend can scale up to handle hundreds of parallel classification requests without bloating or changing the frontend."
+                ],
+                notes: "Why did we decide to decouple? In machine learning applications, monolithic designs often cause the interface to freeze during model fitting or image preprocessing. By separating the UI from the compute server, we keep the user experience completely fluid. It also gives us the freedom to deploy the backend on cloud clusters with dedicated GPU support while leaving the frontend on a lightweight, cost-effective server."
+            },
+            {
+                num: 5,
+                title: "The Machine Learning Pipeline",
+                subtitle: "Combining Deep Learning Backbones with Convex Classifiers",
+                image: "slide_05_ml_pipeline.png",
+                content: [
+                    "The Transfer Learning Strategy: Training a deep network from scratch requires thousands of images and hours of compute.",
+                    "Our Solution: Use a robust, pre-trained image backbone to extract high-level visual features.",
+                    "On-The-Fly Training: Fit a lightweight, fast classifier on top of the extracted features. This allows training to complete in under a second on standard CPUs."
+                ],
+                notes: "Training a deep neural network from scratch requires massive datasets and high-compute hardware. Instead, we use Transfer Learning. We take a powerful model pre-trained on millions of images, freeze its weights, and use it as a 'feature extractor'. This extractor transforms images into numerical vectors. Then, we train a fast mathematical classifier on those vectors. This allows us to train new classes on-the-fly in milliseconds, using only a handful of images."
+            },
+            {
+                num: 6,
+                title: "PyTorch MobileNetV3 Small Feature Extractor",
+                subtitle: "High Efficiency, Low Latency Computer Vision",
+                image: "slide_06_mobilenet.png",
+                content: [
+                    "Backbone Model: torchvision.models.mobilenet_v3_small with default ImageNet pretrained weights.",
+                    "Optimization Settings: Set to Evaluation Mode (.eval()) to disable training layers like Dropout and BatchNorm.",
+                    "Frozen Gradients: All parameter gradients are disabled (requires_grad = False) to prevent weights from shifting during feature extraction.",
+                    "Output Dimensionality: Maps any input image to a flat 1D vector of 576 visual features."
+                ],
+                notes: "Our feature extractor is PyTorch's MobileNetV3 Small. It is specifically designed to run efficiently on mobile and edge devices. We configure the model in evaluation mode and freeze all parameter gradients. This ensures that the backbone remains static and acts purely as a feature generator, outputting a highly descriptive 576-dimensional numerical representation of the input image."
+            },
+            {
+                num: 7,
+                title: "Classification Head: Logistic Regression",
+                subtitle: "Utilizing Scikit-Learn for On-The-Fly Model Fitting",
+                image: "slide_07_classifier.png",
+                content: [
+                    "Model Selection: sklearn.linear_model.LogisticRegression (using L2 regularization and lbfgs solver).",
+                    "Why Logistic Regression? Convex optimization guarantees finding a global minimum, eliminating local minima issues.",
+                    "Dynamic Customization: Supports an adjustable regularization parameter C via the Streamlit interface to control model bias and variance.",
+                    "Softmax Probabilities: Generates prediction scores for each class using predict_proba()."
+                ],
+                notes: "For the classification head, we selected Scikit-Learn's Logistic Regression. It fits in milliseconds, avoids optimization pitfalls, and is highly stable. Additionally, we exposed the regularization parameter C directly to the frontend. This lets users fine-tune regularizer strength dynamically. Once trained, the model returns probability scores for each class, giving us the raw percentages we need for our confidence bars."
+            },
+            {
+                num: 8,
+                title: "Data Preprocessing Uniformity",
+                subtitle: "Keeping Training and Inference Pipelines in Lockstep",
+                image: "slide_08_preprocessing.png",
+                content: [
+                    "The Issue: Machine learning models expect standardized inputs. Any discrepancy between training data and test data breaks predictions.",
+                    "The Solution: A unified preprocessing pipeline: convert to RGB PIL Image, resize to exactly 224x224 pixels, convert to PyTorch Tensor, and normalize using ImageNet channel statistics."
+                ],
+                notes: "One of the most critical rules in machine learning is preprocessing uniformity. If the training pipeline processes an image one way, and the prediction pipeline does it slightly differently, the model's accuracy drops. To prevent this, we wrote a single, reusable preprocessing utility. It converts raw image bytes into a normalized tensor, resizing it to exactly 224 by 224 pixels and applying standard ImageNet normalization."
+            },
+            {
+                num: 9,
+                title: "FastAPI Backend Implementation",
+                subtitle: "An Asynchronous, Auto-Documented API",
+                image: "slide_09_fastapi.png",
+                content: [
+                    "Asynchronous Foundations: Built on FastAPI and Uvicorn for asynchronous request handling.",
+                    "CORS Configuration: CORS middleware allows cross-domain communication from Streamlit.",
+                    "Interactive Documentation: Automated Swagger UI generation at /docs lets developers test backend endpoints independently."
+                ],
+                notes: "Now, let's focus on the backend. FastAPI provides high-speed, asynchronous request handling and automatically generates interactive Swagger UI documentation at `/docs`. We configured CORS middleware to allow cross-origin requests, ensuring our Streamlit client can interact with it. This layout allowed us to develop and verify all backend endpoints independently before writing any frontend code."
+            },
+            {
+                num: 10,
+                title: "Ingestion API: `/upload-sample`",
+                subtitle: "Managing Dynamic Class Subdirectories Safely",
+                image: "slide_10_ingestion.png",
+                content: [
+                    "Endpoint: POST /upload-sample (accepts class_name and a list of files).",
+                    "Dynamic Storage: Uses Python's os module to scan workspace directories and create folders like backend/dataset/{class_name}/ on the fly.",
+                    "UUID Collision Prevention: Generates randomized UUID4 filenames (e.g., 4a7b9c-d2e1.jpg) to avoid file collisions or overwriting."
+                ],
+                notes: "Our first API endpoint is `POST /upload-sample`. It accepts a custom label and a list of image files. On the server side, it sanitizes the label name and checks if a corresponding subdirectory exists in our dataset folder. If not, it creates it dynamically. To prevent incoming files from overwriting each other, we rename every image to a unique UUID4 string before saving it to disk."
+            },
+            {
+                num: 11,
+                title: "Training API: `/train`",
+                subtitle: "Validating Datasets and Serializing Model State",
+                image: "slide_11_training.png",
+                content: [
+                    "Endpoint: POST /train (triggered by Streamlit).",
+                    "Data Validation Checks: Checks for at least 2 distinct class folders, ensures each class folder contains at least 1 image, and returns a detailed HTTP 400 error message if criteria are not met.",
+                    "Persistence: Bundles the Scikit-Learn classifier and label map into a dictionary, serializing it to disk as model.pkl."
+                ],
+                notes: "The training process is triggered via the `POST /train` endpoint. Before training starts, the API validates the dataset. It checks if there are at least two distinct classes and that each class contains at least one image. If validation fails, it returns a clean HTTP 400 error. If validation passes, it extracts features, fits the logistic regression model, and serializes the classifier and label map into a pickle file called `model.pkl`."
+            },
+            {
+                num: 12,
+                title: "Inference API: `/predict`",
+                subtitle: "Live Probability Estimation",
+                image: "slide_12_inference.png",
+                content: [
+                    "Endpoint: POST /predict (accepts a single image).",
+                    "Defensive Logic: Checks for the existence of model.pkl before attempting to run predictions.",
+                    "Features & Probability: Preprocesses the image, extracts features through MobileNetV3, feeds to classifier, and retrieves probability percentages."
+                ],
+                notes: "Our prediction endpoint, `POST /predict`, handles real-time inference. First, it ensures that a model has actually been trained. If `model.pkl` is missing, it returns a clear error message. When a model is found, the endpoint preprocesses the test image, runs it through the backbone, and uses the classifier's `predict_proba` function to return probability scores for all trained classes."
+            },
+            {
+                num: 13,
+                title: "Streamlit Frontend Design & UX",
+                subtitle: "Designing a High-End, Interactive User Interface",
+                image: "slide_13_streamlit.png",
+                content: [
+                    "Premium Visuals: Custom CSS injection for dark mode, rounded cards, gradient buttons, and hover transitions.",
+                    "Dataset Control: Text field for class creation, coupled with dynamic count badges for each category.",
+                    "Dynamic Inputs: Toggles between camera capture (st.camera_input) and file upload."
+                ],
+                notes: "For the user interface, we wanted to build a modern, high-end dashboard. We injected custom CSS into Streamlit to create a dark glassmorphic design. The interface features a class management section where users can add custom labels, and an upload section where they can quickly toggle between bulk file uploads and live webcam captures."
+            },
+            {
+                num: 14,
+                title: "State Management & UI Gating",
+                subtitle: "Guiding the User Journey Step-by-Step",
+                image: "slide_14_state_management.png",
+                content: [
+                    "State Control: Utilizes Streamlit's st.session_state to track application variables.",
+                    "UI Gating: Hides the testing and prediction panels until st.session_state.is_trained is set to True.",
+                    "Clean Design: Hides unnecessary utilities until they are ready to be used, keeping the workspace clutter-free."
+                ],
+                notes: "To keep the user interface clean, we implemented state gating using Streamlit's session state. We track whether a model is currently trained. If not, the testing and real-time prediction panels remain completely hidden. This guides the user through a clean, step-by-step workflow: first define classes, then upload images, click train, and only then unlock the live testing panel."
+            },
+            {
+                num: 15,
+                title: "System Robustness & Graceful Error Handling",
+                subtitle: "Ensuring Stability Under Real-World Edge Cases",
+                image: "slide_15_robustness.png",
+                content: [
+                    "User Action Safeguards: Catching user mistakes without freezing or crashing the services.",
+                    "Graceful Responses: Displays a clean warning banner if less than 2 classes are trained, prevents empty prediction requests, and handles invalid image file formats."
+                ],
+                notes: "A key requirement for this project was robustness. We built error-handling mechanisms at both the API and UI levels. If a user tries to train a model with only one class, or runs predictions before training, the application catches the event and displays a helpful warning banner instead of crashing with a 500 error."
+            },
+            {
+                num: 16,
+                title: "Docker Containerization",
+                subtitle: "Packaging the Application for Seamless Portability",
+                image: "slide_16_docker.png",
+                content: [
+                    "Backend Container: Packages Python 3.11-slim, PyTorch, Scikit-Learn, and FastAPI, exposing port 8000.",
+                    "Frontend Container: Packages Streamlit and HTTP libraries, exposing port 8501.",
+                    "Orchestration (Docker Compose): Links services and mounts a persistent volume to preserve uploaded datasets across container restarts."
+                ],
+                notes: "To make our application easy to deploy, we containerized it using Docker. We created separate Dockerfiles for the frontend and backend to keep our environments clean and lightweight. Then, we used Docker Compose to orchestrate both containers, setting up port mappings and mounting a persistent volume. This volume ensures that uploaded image datasets are preserved even if containers are restarted or rebuilt."
+            },
+            {
+                num: 17,
+                title: "User Workflow Walkthrough",
+                subtitle: "A Complete Run of the Application",
+                image: "slide_17_workflow.png",
+                content: [
+                    "Step 1: Check Connection (Green sidebar badge).",
+                    "Step 2: Collect Data (Define custom categories and upload images).",
+                    "Step 3: Train (Trigger training and wait for the success notification).",
+                    "Step 4: Live Testing (Upload test images or capture a webcam photo to see prediction confidence meters update in real-time)."
+                ],
+                notes: "Let's walk through the user workflow from start to finish. When you open the app, a green badge confirms you are connected to the API. Next, you add your custom classes and upload training images. Once you have enough images, you click 'Train Custom Model'. The app displays a loading spinner during training, and then automatically unlocks the testing panel where you can run predictions and view confidence charts in real-time."
+            },
+            {
+                num: 18,
+                title: "Summary & Future Extensions",
+                subtitle: "Project Takeaways and Scaling Opportunities",
+                image: "slide_18_summary.png",
+                content: [
+                    "Accomplishments: Built a decoupled, production-grade Teachable Machine clone with real-time prediction capabilities.",
+                    "Future Enhancements: Support for multiple deep backbones (e.g., ResNet, EfficientNet), transition training to asynchronous queues (Celery/Redis) to support larger datasets, and deploy the backend on GPU-accelerated cloud nodes."
+                ],
+                notes: "In summary, we successfully built a production-ready, decoupled clone of Google's Teachable Machine using modern web and ML frameworks. Looking ahead, this architecture makes it easy to add enhancements. We can integrate different model backbones, move training tasks to asynchronous background queues like Celery, or deploy the backend to GPU-equipped cloud nodes for larger datasets. Thank you for your time, and I am happy to open the floor to any questions."
+            }
+        ];
+
+        let currentIndex = 0;
+        let autoplayInterval = null;
+        const AUTOPLAY_DELAY = 6000; // 6 seconds per slide
+
+        const slideImg = document.getElementById('slideImg');
+        const textContainer = document.getElementById('textContainer');
+        const slideNumLabel = document.getElementById('slideNumLabel');
+        const slideTitle = document.getElementById('slideTitle');
+        const slideSubtitle = document.getElementById('slideSubtitle');
+        const slideBullets = document.getElementById('slideBullets');
+        const slideNotes = document.getElementById('slideNotes');
+        const prevBtn = document.getElementById('prevBtn');
+        const nextBtn = document.getElementById('nextBtn');
+        const autoplayBtn = document.getElementById('autoplayBtn');
+        const playIcon = document.getElementById('playIcon');
+        const playLabel = document.getElementById('playLabel');
+        const thumbContainer = document.getElementById('thumbContainer');
+
+        // Initialize thumbnails
+        function initThumbnails() {
+            slides.forEach((slide, idx) => {
+                const thumb = document.createElement('div');
+                thumb.className = `thumbnail ${idx === 0 ? 'active' : ''}`;
+                thumb.setAttribute('data-index', idx);
+                
+                const img = document.createElement('img');
+                img.src = slide.image;
+                img.alt = `Slide ${slide.num}`;
+                
+                thumb.appendChild(img);
+                thumbContainer.appendChild(thumb);
+
+                thumb.addEventListener('click', () => {
+                    stopAutoplay();
+                    goToSlide(idx);
+                });
+            });
+        }
+
+        // Render current slide
+        function goToSlide(index) {
+            if (index < 0 || index >= slides.length) return;
+            
+            // Handle active classes for transition
+            slideImg.classList.remove('active');
+            textContainer.classList.remove('active');
+            
+            setTimeout(() => {
+                currentIndex = index;
+                const slide = slides[currentIndex];
+                
+                // Update Image & Text
+                slideImg.src = slide.image;
+                slideImg.alt = slide.title;
+                slideNumLabel.textContent = `Slide ${String(slide.num).padStart(2, '0')} of ${slides.length}`;
+                slideTitle.textContent = slide.title;
+                slideSubtitle.textContent = slide.subtitle;
+                
+                // Update Bullets
+                slideBullets.innerHTML = '';
+                slide.content.forEach(bullet => {
+                    const li = document.createElement('li');
+                    li.textContent = bullet;
+                    slideBullets.appendChild(li);
+                });
+
+                // Update Notes
+                slideNotes.textContent = `"${slide.notes}"`;
+                
+                // Toggle active class back on
+                slideImg.classList.add('active');
+                textContainer.classList.add('active');
+                
+                // Update buttons state
+                prevBtn.disabled = currentIndex === 0;
+                nextBtn.disabled = currentIndex === slides.length - 1;
+
+                // Update active thumbnail
+                document.querySelectorAll('.thumbnail').forEach((thumb, idx) => {
+                    if (idx === currentIndex) {
+                        thumb.classList.add('active');
+                        // Scroll thumbnail into view if needed
+                        thumb.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+                    } else {
+                        thumb.classList.remove('active');
+                    }
+                });
+            }, 250);
+        }
+
+        // Nav functions
+        function nextSlide() {
+            if (currentIndex < slides.length - 1) {
+                goToSlide(currentIndex + 1);
+            } else if (autoplayInterval) {
+                // Loop back to start in autoplay
+                goToSlide(0);
+            }
+        }
+
+        function prevSlide() {
+            if (currentIndex > 0) {
+                goToSlide(currentIndex - 1);
+            }
+        }
+
+        // Autoplay logic
+        function toggleAutoplay() {
+            if (autoplayInterval) {
+                stopAutoplay();
+            } else {
+                startAutoplay();
+            }
+        }
+
+        function startAutoplay() {
+            autoplayInterval = setInterval(nextSlide, AUTOPLAY_DELAY);
+            playLabel.textContent = "Pause";
+            playIcon.innerHTML = `<rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect>`;
+        }
+
+        function stopAutoplay() {
+            if (autoplayInterval) {
+                clearInterval(autoplayInterval);
+                autoplayInterval = null;
+                playLabel.textContent = "Autoplay";
+                playIcon.innerHTML = `<polygon points="5 3 19 12 5 21 5 3"></polygon>`;
+            }
+        }
+
+        // Bind events
+        prevBtn.addEventListener('click', () => {
+            stopAutoplay();
+            prevSlide();
+        });
+
+        nextBtn.addEventListener('click', () => {
+            stopAutoplay();
+            nextSlide();
+        });
+
+        autoplayBtn.addEventListener('click', toggleAutoplay);
+
+        // Keyboard navigation
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowRight') {
+                stopAutoplay();
+                nextSlide();
+            } else if (e.key === 'ArrowLeft') {
+                stopAutoplay();
+                prevSlide();
+            }
+        });
+
+        // Initialize slideshow
+        initThumbnails();
+        goToSlide(0);
+    </script>
+</body>
+</html>

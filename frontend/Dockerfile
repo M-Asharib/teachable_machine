@@ -12,6 +12,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy the frontend code into the app workspace
 COPY frontend/ ./frontend/
+COPY learning_hub/ ./learning_hub/
 COPY test_image.jpg ./
 
 # Expose the Streamlit service port
