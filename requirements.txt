@@ -1,19 +1,14 @@
---extra-index-url https://download.pytorch.org/whl/cpu
-
 # Web framework & server
 fastapi==0.111.0
 uvicorn[standard]==0.30.1
 python-multipart==0.0.9
-
-# Frontend
-streamlit==1.52.2
 requests==2.32.3
 
-# ML & Computer Vision — CPU-only PyTorch wheels
-torch==2.9.1+cpu
-torchvision==0.20.1+cpu
-scikit-learn==1.8.0
+# ML & Computer Vision
+torch==2.3.1
+torchvision==0.18.1
+scikit-learn==1.5.0
 
 # Numerics & Image processing
-numpy==2.2.3
-pillow==11.3.0
+numpy==1.26.4
+pillow==10.3.0
