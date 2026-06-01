@@ -1,0 +1,8 @@
+
+# Large model/dataset files - too big for GitHub
+Models/*.zip
+Models/*.tar.gz
+*.pkl
+__pycache__/
+.pytest_cache/
+*.pyc
