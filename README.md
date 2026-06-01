@@ -1,4 +1,16 @@
+---
+title: Teachable Machine Clone
+emoji: 🤖
+colorFrom: blue
+colorTo: purple
+sdk: docker
+app_port: 7860
+pinned: false
+license: mit
+---
+
 # Teachable Machine Pro: Custom Image Classifier (Decoupled Full-Stack System)
+
 
 Welcome to **Teachable Machine Pro**! This application is a completely decoupled, high-performance, and client-server clone of Google's Teachable Machine. It is built using **Streamlit** for a premium glassmorphic frontend UI and **FastAPI** for a fast, PyTorch-powered machine learning backend.
 
